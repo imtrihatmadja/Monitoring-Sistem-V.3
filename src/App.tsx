@@ -12,7 +12,9 @@ import {
   INITIAL_DOCUMENTS,
 } from './data';
 import { SupabaseSync } from './lib/supabaseSync';
-import { isSupabaseConfigured, supabase } from './supabaseClient';
+import { isSupabaseConfigured, supabase, reinitializeSupabase } from './supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+
 
 // Import Tab Components
 import { DashboardTab } from './components/DashboardTab';
@@ -70,7 +72,7 @@ export default function App() {
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'projects' | 'beneficiary' | 'issues' | 'staff' | 'add_project' | 'edit_project' | 'project_detail' | 'archive' | 'documents'
+    'dashboard' | 'projects' | 'beneficiary' | 'issues' | 'staff' | 'add_project' | 'edit_project' | 'project_detail' | 'archive' | 'documents' | 'supabase'
   >('dashboard');
   
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -93,6 +95,13 @@ export default function App() {
 
   const [isStaffTasksModalOpen, setIsStaffTasksModalOpen] = useState(false);
   const [selectedStaffTasksName, setSelectedStaffTasksName] = useState<string>('');
+
+  // Supabase live configuration states
+  const [dbUrl, setDbUrl] = useState(localStorage.getItem('dfw_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '');
+  const [dbKey, setDbKey] = useState(localStorage.getItem('dfw_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+  const [dbIsConfigured, setDbIsConfigured] = useState(isSupabaseConfigured);
+  const [isTestingDb, setIsTestingDb] = useState(false);
+  const [dbError, setDbError] = useState('');
 
   // Sync validation status toast
   const [syncToast, setSyncToast] = useState<'success' | 'info' | 'error' | ''>('');
@@ -176,7 +185,7 @@ export default function App() {
 
   // Setup Subscription Real-time untuk sinkronisasi antarterminal pengguna secara instan
   useEffect(() => {
-    if (isSupabaseConfigured && supabase) {
+    if (dbIsConfigured && supabase) {
       const channel = supabase
         .channel('realtime_sync')
         .on('postgres_changes', { event: '*', schema: 'public' }, () => {
@@ -201,7 +210,7 @@ export default function App() {
         supabase.removeChannel(channel);
       };
     }
-  }, []);
+  }, [dbIsConfigured]);
 
   // Save states helper with user-friendly feedback
   const handleSyncResult = (promise: Promise<boolean>, actionText: string) => {
@@ -225,7 +234,7 @@ export default function App() {
   const updateDocumentsInStorage = (newList: ProjectDocument[]) => {
     setDocuments(newList);
     localStorage.setItem('dfw_documents', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = documents.filter(d => !newList.some(item => item.id === d.id));
       deleted.forEach(d => handleSyncResult(SupabaseSync.deleteDocument(d.id), "Penghapusan dokumen"));
       newList.forEach(item => {
@@ -240,7 +249,7 @@ export default function App() {
   const updateProjectsInStorage = (newList: Project[]) => {
     setProjects(newList);
     localStorage.setItem('dfw_projects', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = projects.filter(p => !newList.some(item => item.id === p.id));
       deleted.forEach(p => handleSyncResult(SupabaseSync.deleteProject(p.id), "Penghapusan proyek"));
       newList.forEach(item => {
@@ -255,7 +264,7 @@ export default function App() {
   const updateIndicatorsInStorage = (newList: Indicator[]) => {
     setIndicators(newList);
     localStorage.setItem('dfw_indicators', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = indicators.filter(i => !newList.some(item => item.id === i.id));
       deleted.forEach(i => handleSyncResult(SupabaseSync.deleteIndicator(i.id), "Penghapusan indikator"));
       newList.forEach(item => {
@@ -270,7 +279,7 @@ export default function App() {
   const updateOutcomesInStorage = (newList: Outcome[]) => {
     setOutcomes(newList);
     localStorage.setItem('dfw_outcomes', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = outcomes.filter(o => !newList.some(item => item.id === o.id));
       deleted.forEach(o => handleSyncResult(SupabaseSync.deleteOutcome(o.id), "Penghapusan outcomes"));
       newList.forEach(item => {
@@ -285,7 +294,7 @@ export default function App() {
   const updateActivitiesInStorage = (newList: Activity[]) => {
     setActivities(newList);
     localStorage.setItem('dfw_activities', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = activities.filter(a => !newList.some(item => item.id === a.id));
       deleted.forEach(a => handleSyncResult(SupabaseSync.deleteActivity(a.id), "Penghapusan kegiatan"));
       newList.forEach(item => {
@@ -300,7 +309,7 @@ export default function App() {
   const updateBeneficiariesInStorage = (newList: Beneficiary[]) => {
     setBeneficiaries(newList);
     localStorage.setItem('dfw_beneficiaries', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = beneficiaries.filter(b => !newList.some(item => item.id === b.id));
       deleted.forEach(b => handleSyncResult(SupabaseSync.deleteBeneficiary(b.id), "Penghapusan penerima manfaat"));
       newList.forEach(item => {
@@ -315,7 +324,7 @@ export default function App() {
   const updateIssuesInStorage = (newList: Issue[]) => {
     setIssues(newList);
     localStorage.setItem('dfw_issues', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = issues.filter(i => !newList.some(item => item.id === i.id));
       deleted.forEach(i => handleSyncResult(SupabaseSync.deleteIssue(i.id), "Penghapusan isu"));
       newList.forEach(item => {
@@ -330,7 +339,7 @@ export default function App() {
   const updateSubActivitiesInStorage = (newList: SubActivity[]) => {
     setSubActivities(newList);
     localStorage.setItem('dfw_sub_activities', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = subActivities.filter(s => !newList.some(item => item.id === s.id));
       deleted.forEach(s => handleSyncResult(SupabaseSync.deleteSubActivity(s.id), "Penghapusan sub-kegiatan"));
       newList.forEach(item => {
@@ -345,7 +354,7 @@ export default function App() {
   const updateReflectionsInStorage = (newList: ProjectReflection[]) => {
     setReflections(newList);
     localStorage.setItem('dfw_reflections', JSON.stringify(newList));
-    if (isSupabaseConfigured) {
+    if (dbIsConfigured) {
       const deleted = reflections.filter(r => !newList.some(item => item.id === r.id));
       deleted.forEach(r => handleSyncResult(SupabaseSync.deleteReflection(r.id), "Penghapusan refleksi"));
       newList.forEach(item => {
@@ -375,6 +384,93 @@ export default function App() {
     });
 
     updateProjectsInStorage(updated);
+  };
+
+  // Reusable function to fetch data from Supabase and update states and local storage fallback
+  const fetchAndSyncFromSupabase = async () => {
+    try {
+      setSyncToast('info');
+      setSyncToastMsg('Mengsinkronisasi data dengan Supabase Cloud...');
+      const data = await SupabaseSync.fetchAllData();
+      if (data) {
+        setProjects(data.projects);
+        setIndicators(data.indicators);
+        setOutcomes(data.outcomes);
+        setActivities(data.activities);
+        setBeneficiaries(data.beneficiaries);
+        setIssues(data.issues);
+        setStaff(data.staff);
+        setSubActivities(data.subActivities);
+        setReflections(data.reflections);
+        setDocuments(data.documents);
+        
+        // Write to local storage for caching/offline fallback
+        localStorage.setItem('dfw_projects', JSON.stringify(data.projects));
+        localStorage.setItem('dfw_indicators', JSON.stringify(data.indicators));
+        localStorage.setItem('dfw_outcomes', JSON.stringify(data.outcomes));
+        localStorage.setItem('dfw_activities', JSON.stringify(data.activities));
+        localStorage.setItem('dfw_beneficiaries', JSON.stringify(data.beneficiaries));
+        localStorage.setItem('dfw_issues', JSON.stringify(data.issues));
+        localStorage.setItem('dfw_staff', JSON.stringify(data.staff));
+        localStorage.setItem('dfw_sub_activities', JSON.stringify(data.subActivities));
+        localStorage.setItem('dfw_reflections', JSON.stringify(data.reflections));
+        localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+
+        setSyncToast('success');
+        setSyncToastMsg('Sinkronisasi data dari Supabase berhasil!');
+        setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 3000);
+        return true;
+      } else {
+        throw new Error('Supabase fetch returned null');
+      }
+    } catch (err: any) {
+      setSyncToast('error');
+      setSyncToastMsg(`Gagal sinkronisasi data: ${err.message || err}`);
+      setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 6000);
+      return false;
+    }
+  };
+
+  const handleExportAllToSupabase = async () => {
+    if (!dbIsConfigured) {
+      alert("Silakan hubungkan Supabase terlebih dahulu.");
+      return;
+    }
+    
+    setSyncToast('info');
+    setSyncToastMsg('Memulai migrasi data lokal ke Supabase Cloud...');
+    
+    try {
+      let successCount = 0;
+      let totalCount = 0;
+      
+      async function uploadList<T>(list: T[], saveFunc: (item: T) => Promise<boolean>) {
+        for (const item of list) {
+          totalCount++;
+          const ok = await saveFunc(item);
+          if (ok) successCount++;
+        }
+      }
+      
+      await uploadList(projects, SupabaseSync.saveProject);
+      await uploadList(indicators, SupabaseSync.saveIndicator);
+      await uploadList(outcomes, SupabaseSync.saveOutcome);
+      await uploadList(activities, SupabaseSync.saveActivity);
+      await uploadList(beneficiaries, SupabaseSync.saveBeneficiary);
+      await uploadList(issues, SupabaseSync.saveIssue);
+      await uploadList(staff, SupabaseSync.saveStaff);
+      await uploadList(subActivities, SupabaseSync.saveSubActivity);
+      await uploadList(reflections, SupabaseSync.saveReflection);
+      await uploadList(documents, SupabaseSync.saveDocument);
+      
+      setSyncToast('success');
+      setSyncToastMsg(`Migrasi selesai: ${successCount} dari ${totalCount} data berhasil diekspor ke Supabase Cloud!`);
+      setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 5000);
+    } catch (err: any) {
+      setSyncToast('error');
+      setSyncToastMsg(`Gagal migrasi: ${err.message || err}`);
+      setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 6000);
+    }
   };
 
   // --- RECT REVENUE CALLBACK WORKFLOW ---
@@ -1533,6 +1629,21 @@ export default function App() {
             <FolderMinus className="w-4 h-4 shrink-0" />
             <span>Arsip Proyek Selesai</span>
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('supabase');
+              setSelectedProjectId('');
+            }}
+            className={`w-full py-2.5 px-3 rounded-lg flex items-center gap-3 cursor-pointer text-left transition-all ${
+              activeTab === 'supabase'
+                ? 'bg-blue-600 text-white font-bold'
+                : 'hover:bg-slate-800 hover:text-slate-100 text-slate-400'
+            }`}
+          >
+            <Database className="w-4 h-4 shrink-0" />
+            <span>Pengaturan Supabase</span>
+          </button>
         </nav>
 
         {/* User identification footer */}
@@ -1775,6 +1886,171 @@ export default function App() {
                 setTimeout(() => setSyncToast(''), 1500);
               }}
             />
+          )}
+
+          {activeTab === 'supabase' && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-xs max-w-2xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2.5">
+                  <Database className="w-5 h-5 text-blue-600" />
+                  Koneksi Database Supabase Cloud
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Konfigurasikan sambungan ke database Supabase Anda untuk menyimpan data pemantauan secara real-time dan berkolaborasi antarpengguna secara instan.
+                </p>
+              </div>
+
+              {/* Connection Status Indicator */}
+              <div className={`p-4 rounded-xl border flex items-start gap-3.5 transition-all ${
+                dbIsConfigured 
+                  ? 'bg-emerald-50/50 border-emerald-100 text-slate-850'
+                  : 'bg-amber-50/50 border-amber-100 text-slate-850'
+              }`}>
+                <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center font-bold text-lg select-none ${
+                  dbIsConfigured ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+                }`}>
+                  {dbIsConfigured ? '✓' : '!'}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="font-bold text-[10px] uppercase tracking-wider text-slate-400">Status Sambungan</div>
+                  <div className="text-sm font-bold text-slate-800">
+                    {dbIsConfigured 
+                      ? 'Terhubung dengan Supabase Cloud (Aktif)' 
+                      : 'Menggunakan Penyimpanan Lokal (Offline Fallback)'}
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {dbIsConfigured 
+                      ? `Semua pengisian, pengeditan, atau penghapusan silih berganti dari proyek, kegiatan, indikator, atau dokumen saat ini disinkronisasikan ke Supabase secara langsung.`
+                      : 'Saat ini data hanya tersimpan secara aman di browser lokal Anda. Jika cache browser dibersihkan, data mungkin terhapus. Hubungkan dengan Supabase Cloud API untuk sinkronisasi jangka panjang.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Form Input fields */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">Supabase URL</label>
+                  <input
+                    type="text"
+                    value={dbUrl}
+                    onChange={(e) => setDbUrl(e.target.value)}
+                    placeholder="https://your-project-id.supabase.co"
+                    className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none transition-all font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400">Dapatkan URL ini pada menu Settings &gt; API di dashboard Supabase milik Anda.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">Supabase Anon Key (API Key)</label>
+                  <input
+                    type="password"
+                    value={dbKey}
+                    onChange={(e) => setDbKey(e.target.value)}
+                    placeholder="eyJhbGciOi..."
+                    className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none transition-all font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 font-medium">Kunci anon publik aman digunakan pada browser web untuk interaksi database langsung.</p>
+                </div>
+              </div>
+
+              {/* Error box */}
+              {dbError && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                  <p className="text-xs font-bold text-red-600">Gagal Melakukan Sambungan ke Tabel:</p>
+                  <p className="text-xs text-red-500 mt-0.5 leading-relaxed font-mono select-text">{dbError}</p>
+                </div>
+              )}
+
+              {/* Buttons Actions */}
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={async () => {
+                    setIsTestingDb(true);
+                    setDbError('');
+                    try {
+                      if (!dbUrl.trim() || !dbKey.trim()) {
+                        throw new Error('Harap masukkan Supabase URL dan Anon Key terlebih dahulu.');
+                      }
+                      
+                      const urlStr = dbUrl.trim();
+                      const keyStr = dbKey.trim();
+                      
+                      // Safely test with temporary client instance
+                      const tempClient = createClient(urlStr, keyStr);
+                      const { error } = await tempClient.from('projects').select('id').limit(1);
+                      if (error) {
+                        throw new Error(`Tes koneksi ke database berhasil, namun gagal mengambil data tabel: ${error.message}. Harap pastikan tabel "projects" beserta skema tabel DFW Indonesia telah dibuat di Supabase Anda.`);
+                      }
+
+                      // Successfully verified! Reinitialize global db client
+                      reinitializeSupabase(urlStr, keyStr);
+                      setDbIsConfigured(true);
+                      setSyncToast('success');
+                      setSyncToastMsg('Koneksi Supabase berhasil diproses dan disimpan secara permanen!');
+                      setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 4000);
+                    } catch (err: any) {
+                      setDbError(err.message || 'Gagal terhubung ke Supabase. Periksa kembali format URL / Key API Anda.');
+                    } finally {
+                      setIsTestingDb(false);
+                    }
+                  }}
+                  disabled={isTestingDb}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+                >
+                  {isTestingDb ? 'Sedang Memverifikasi...' : 'Tes & Hubungkan Supabase'}
+                </button>
+
+                {dbIsConfigured && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Apakah Anda yakin ingin memutus koneksi Supabase? Aplikasi akan beralih menggunakan Penyimpanan Lokal Offline.')) {
+                        reinitializeSupabase('', '');
+                        setDbIsConfigured(false);
+                        setDbUrl('');
+                        setDbKey('');
+                        setSyncToast('success');
+                        setSyncToastMsg('Koneksi diputus. Aplikasi kembali ke penyimpanan lokal.');
+                        setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 3000);
+                      }
+                    }}
+                    className="sm:w-auto bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all"
+                  >
+                    Putuskan Koneksi
+                  </button>
+                )}
+              </div>
+
+              {dbIsConfigured && (
+                <div className="border-t border-slate-100 pt-5 mt-4 space-y-4">
+                  <h3 className="text-xs font-bold text-slate-800">Sinkronisasi & Migrasi Data Manual</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                    Gunakan tombol pemrosesan di bawah untuk mentransfer seluruh draf lokal Anda langsung ke Supabase, atau mengganti draf lokal dengan data terbaru dari database Cloud:
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={handleExportAllToSupabase}
+                      className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-3 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+                    >
+                      <PlusCircle className="text-emerald-500 w-4 h-4" />
+                      <span>Unggah Data Lokal ke Supabase</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (confirm('Langkah ini akan MENIMPA seluruh data lokal yang ada saat ini dengan salinan dari Supabase Cloud. Lanjutkan?')) {
+                          await fetchAndSyncFromSupabase();
+                        }
+                      }}
+                      className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-3 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
+                    >
+                      <ChevronRight className="text-blue-500 w-4 h-4" />
+                      <span>Unduh Data dari Supabase</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </main>
