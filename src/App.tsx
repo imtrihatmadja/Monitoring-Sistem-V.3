@@ -1981,7 +1981,7 @@ export default function App() {
                       const keyStr = dbKey.trim();
                       
                       // Safely test with temporary client instance
-                      const tempClient = createClient(urlStr, keyStr);
+                      const tempClient = createClient(urlStr, keyStr, { auth: { persistSession: false } });
                       const { error } = await tempClient.from('projects').select('id').limit(1);
                       if (error) {
                         throw new Error(`Tes koneksi ke database berhasil, namun gagal mengambil data tabel: ${error.message}. Harap pastikan tabel "projects" beserta skema tabel DFW Indonesia telah dibuat di Supabase Anda.`);

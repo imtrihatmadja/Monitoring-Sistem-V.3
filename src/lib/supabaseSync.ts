@@ -1,10 +1,65 @@
 import { supabase, isSupabaseConfigured, supabaseUrl, supabaseAnonKey } from '../supabaseClient';
 import { Project, Indicator, Outcome, Activity, SubActivity, Beneficiary, Issue, Staff, ProjectReflection, ProjectDocument } from '../types';
 
-// Global caches for schema discovery
-let schemaColumns: Record<string, string[]> = {};
+// Global caches for schema discovery with comprehensive static fallback definitions
+const fallbackSchemaColumns: Record<string, string[]> = {
+  projects: [
+    'id', 'name', 'location', 'owner', 'donor', 'status', 'start_date', 'deadline', 
+    'progress', 'budget_approved', 'budget_actual', 'desc', 'note', 'goal', 
+    'is_archived', 'archored_by', 'archived_at'
+  ],
+  project_indicators: [
+    'id', 'project_id', 'title', 'target', 'current', 'unit', 'last_updated', 'last_value'
+  ],
+  project_outcomes: [
+    'id', 'project_id', 'title'
+  ],
+  project_activities: [
+    'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files'
+  ],
+  beneficiaries: [
+    'id', 'name', 'phone', 'gender', 'birth_year', 'location', 'occupation', 'email', 'note', 'registrations'
+  ],
+  issues: [
+    'id', 'title', 'description', 'category', 'project_id', 'activity_id', 'severity', 'status', 
+    'date_occurred', 'source_type', 'source_link', 'tags', 'updates'
+  ],
+  staff: [
+    'id', 'name', 'role' // Note: 'status' is excluded by default to prevent PostgREST errors in DBs without status column!
+  ],
+  project_reflections: [
+    'id', 'project_id', 'title', 'type', 'date', 'what_happened', 'what_worked', 'what_didnt', 'lesson', 'next_steps', 'contributor'
+  ],
+  project_documents: [
+    'id', 'project_name', 'category', 'file_name', 'mime_type', 'file_size', 
+    'drive_file_id', 'drive_folder_id', 'web_view_link', 'description', 'created_at'
+  ],
+  project_sub_activities: [
+    'id', 'parent_activity_id', 'title', 'desc', 'pic', 'status', 'priority', 'due'
+  ]
+};
+
+const fallbackSchemaUuidColumns: Record<string, string[]> = {
+  projects: ['id'],
+  project_indicators: ['id', 'project_id'],
+  project_outcomes: ['id', 'project_id'],
+  project_activities: ['id', 'project_id'],
+  beneficiaries: ['id'],
+  issues: ['id', 'project_id', 'activity_id'],
+  staff: ['id'],
+  project_reflections: ['id', 'project_id'],
+  project_sub_activities: ['id', 'parent_activity_id'],
+  project_documents: ['id']
+};
+
+let schemaColumns: Record<string, string[]> = { ...fallbackSchemaColumns };
 let schemaUuidColumns: Record<string, Set<string>> = {};
 let isSchemaFetched = false;
+
+// Initialize schemaUuidColumns with fallback lists
+for (const [table, cols] of Object.entries(fallbackSchemaUuidColumns)) {
+  schemaUuidColumns[table] = new Set(cols);
+}
 
 // Deterministic string-to-UUID converter to satisfy strict PostgreSQL uuid data types
 function textToUuid(str: string): string {
@@ -67,10 +122,10 @@ function fromDbRow<T>(row: any): T {
 function cleanRowAndPrepare(tableName: string, row: any): any {
   if (!row) return row;
   
-  // 1. Filter keys based on schema columns if fetched
+  // 1. Filter keys based on schema columns
   let finalRow = { ...row };
   const columns = schemaColumns[tableName];
-  if (isSchemaFetched && columns && columns.length > 0) {
+  if (columns && columns.length > 0) {
     finalRow = {};
     for (const col of columns) {
       if (row[col] !== undefined) {
@@ -81,7 +136,7 @@ function cleanRowAndPrepare(tableName: string, row: any): any {
   
   // 2. Perform dynamic UUID formatting for columns that expect UUID in Supabase
   const uuids = schemaUuidColumns[tableName];
-  if (isSchemaFetched && uuids && uuids.size > 0) {
+  if (uuids && uuids.size > 0) {
     for (const col of Object.keys(finalRow)) {
       if (uuids.has(col)) {
         const val = finalRow[col];
@@ -95,13 +150,10 @@ function cleanRowAndPrepare(tableName: string, row: any): any {
     const commonUuidFields = ['id', 'project_id', 'activity_id', 'parent_activity_id'];
     for (const field of commonUuidFields) {
       if (finalRow[field] !== undefined && typeof finalRow[field] === 'string' && finalRow[field].trim() !== '') {
-        // Only convert if it doesn't already fit our default model or looks like a typical short ID or is explicitly a candidate
         const val = finalRow[field];
-        // Standard check: if it looks like st-01 etc, lets be flexible or convert
         const isStandardTextId = /^(p-|ind-|out-|act-|sub-|ref-|ben-|st-)/i.test(val);
         if (isStandardTextId) {
-          // If schema is not fetched, we don't force convert st-01/p-123 unless we have to, 
-          // because they might be standard VARCHAR/TEXT in simple DB designs.
+          finalRow[field] = textToUuid(val);
         }
       }
     }
@@ -183,7 +235,8 @@ export const SupabaseSync = {
       
       const res = await fetch(restUrl, {
         headers: {
-          'apikey': targetKey
+          'apikey': targetKey,
+          'Authorization': `Bearer ${targetKey}`
         }
       });
       
@@ -313,7 +366,11 @@ export const SupabaseSync = {
           }
           return issue;
         }),
-        staff: (resStaff.data || []).map(row => fromDbRow<Staff>(row)),
+        staff: (resStaff.data || []).map(row => {
+          const s = fromDbRow<Staff>(row);
+          if (!s.status) s.status = 'active';
+          return s;
+        }),
         subActivities: (resSubActs?.data || []).map((row: any) => fromDbRow<SubActivity>(row)),
         reflections: (resReflections.data || []).map(row => fromDbRow<ProjectReflection>(row)),
         documents: (resDocs?.data || []).map((row: any) => fromDbRow<ProjectDocument>(row))

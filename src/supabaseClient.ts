@@ -23,7 +23,7 @@ export let supabaseUrl = config.url;
 export let supabaseAnonKey = config.key;
 
 export let supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } })
   : null;
 
 if (supabase) {
@@ -42,7 +42,7 @@ export function reinitializeSupabase(url: string, anonKey: string): boolean {
     supabaseUrl = cleanedUrl;
     supabaseAnonKey = cleanedKey;
     isSupabaseConfigured = true;
-    supabase = createClient(cleanedUrl, cleanedKey);
+    supabase = createClient(cleanedUrl, cleanedKey, { auth: { persistSession: false } });
     // @ts-ignore
     window.client = supabase;
     return true;
