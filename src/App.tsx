@@ -97,6 +97,22 @@ export default function App() {
 
   // Initialize data stores
   useEffect(() => {
+    // Force a one-time clear of previous dummy local storage to ensure the user gets a completely empty database
+    const clearedFlag = localStorage.getItem('dfw_db_cleared_v1');
+    if (!clearedFlag) {
+      localStorage.removeItem('dfw_projects');
+      localStorage.removeItem('dfw_indicators');
+      localStorage.removeItem('dfw_outcomes');
+      localStorage.removeItem('dfw_activities');
+      localStorage.removeItem('dfw_beneficiaries');
+      localStorage.removeItem('dfw_issues');
+      localStorage.removeItem('dfw_sub_activities');
+      localStorage.removeItem('dfw_reflections');
+      localStorage.removeItem('dfw_documents');
+      localStorage.removeItem('dfw_staff');
+      localStorage.setItem('dfw_db_cleared_v1', 'true');
+    }
+
     // Read local storages or load initial structures
     const storedProjects = localStorage.getItem('dfw_projects');
     const storedIndicators = localStorage.getItem('dfw_indicators');
@@ -152,10 +168,7 @@ export default function App() {
 
     if (storedSubActivities) setSubActivities(JSON.parse(storedSubActivities));
     else {
-      const defaultSubs: SubActivity[] = [
-        { id: 'sub-01', parentActivityId: 'act-02', title: 'Pembelian lisensi logbook seluler', pic: 'Fadli S.', priority: 'High', status: 'Selesai' },
-        { id: 'sub-02', parentActivityId: 'act-02', title: 'Penyusunan pamflet modul e-logbook', pic: 'Budi Hartono', priority: 'Normal', status: 'Sedang Dikerjakan' }
-      ];
+      const defaultSubs: SubActivity[] = [];
       setSubActivities(defaultSubs);
       localStorage.setItem('dfw_sub_activities', JSON.stringify(defaultSubs));
     }
