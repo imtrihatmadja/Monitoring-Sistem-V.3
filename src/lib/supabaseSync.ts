@@ -9,10 +9,10 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'is_archived', 'archored_by', 'archived_at'
   ],
   project_indicators: [
-    'id', 'project_id', 'title', 'target', 'current', 'unit', 'last_updated', 'last_value'
+    'id', 'project_id', 'title', 'target', 'current', 'unit', 'last_updated', 'last_value', 'project_name'
   ],
   project_outcomes: [
-    'id', 'project_id', 'title'
+    'id', 'project_id', 'title', 'project_name'
   ],
   project_activities: [
     'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files'
@@ -25,7 +25,7 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'date_occurred', 'source_type', 'source_link', 'tags', 'updates'
   ],
   staff: [
-    'id', 'name', 'role' // Note: 'status' is excluded by default to prevent PostgREST errors in DBs without status column!
+    'id', 'name', 'role', 'status'
   ],
   project_reflections: [
     'id', 'project_id', 'title', 'type', 'date', 'what_happened', 'what_worked', 'what_didnt', 'lesson', 'next_steps', 'contributor'
@@ -247,6 +247,33 @@ function cleanRowAndPrepare(tableName: string, row: any): any {
 // Since hash is one-way, we cannot mathematically reverse. But since our UUIDs are consistent,
 // they fit perfectly, and the React app is completely fine using UUIDs for internal IDs and lookups.
 
+// Global cache for mapping project IDs (in both standard and UUID format) to their friendly display names
+const projectIdToName = new Map<string, string>();
+
+// Helper to asynchronously fetch project_name if missing from memory cache
+async function ensureProjectNameInCache(projectId: string): Promise<string> {
+  if (!projectId) return 'DFW Project';
+  const cleanId = textToUuid(projectId);
+  let name = projectIdToName.get(projectId) || projectIdToName.get(cleanId);
+  if (!name && supabase) {
+    try {
+      const { data } = await supabase
+        .from('projects')
+        .select('name')
+        .eq('id', cleanId)
+        .maybeSingle();
+      if (data && data.name) {
+        projectIdToName.set(projectId, data.name);
+        projectIdToName.set(cleanId, data.name);
+        name = data.name;
+      }
+    } catch (e) {
+      console.warn('Failed to resolve project name for ID:', projectId, e);
+    }
+  }
+  return name || 'DFW Project';
+}
+
 // Map specific custom edge-cases to be 100% compliant with PostgreSQL columns
 function mapProjectToDb(proj: Project) {
   const row = toDbRow(proj);
@@ -263,7 +290,23 @@ function mapIndicatorToDb(ind: Indicator) {
   row.target = Number(ind.target || 0);
   row.current = Number(ind.current || 0);
   row.last_value = Number(ind.lastValue || 0);
+  
+  // Attach project_name to fulfill the database's not-null constraint
+  const cleanId = textToUuid(ind.projectId);
+  row.project_name = projectIdToName.get(ind.projectId) || projectIdToName.get(cleanId) || 'DFW Project';
+  
   return cleanRowAndPrepare('project_indicators', row);
+}
+
+function mapOutcomeToDb(out: Outcome) {
+  const row = toDbRow(out);
+  row.project_id = out.projectId;
+  
+  // Attach project_name to fulfill the database's not-null constraint
+  const cleanId = textToUuid(out.projectId);
+  row.project_name = projectIdToName.get(out.projectId) || projectIdToName.get(cleanId) || 'DFW Project';
+  
+  return cleanRowAndPrepare('project_outcomes', row);
 }
 
 function mapActivityToDb(act: Activity) {
@@ -433,6 +476,10 @@ export const SupabaseSync = {
       return {
         projects: (resProjects.data || []).map(row => {
           const item = fromDbRow<Project>(row);
+          if (item.id && item.name) {
+            projectIdToName.set(item.id, item.name);
+            projectIdToName.set(textToUuid(item.id), item.name);
+          }
           return item;
         }),
         indicators: (resIndicators.data || []).map(row => {
@@ -485,6 +532,10 @@ export const SupabaseSync = {
 
   // Save/Upsert handlers using self-healing safeUpsert to protect against schema discrepancies
   async saveProject(proj: Project): Promise<boolean> {
+    if (proj.id && proj.name) {
+      projectIdToName.set(proj.id, proj.name);
+      projectIdToName.set(textToUuid(proj.id), proj.name);
+    }
     const res = await safeUpsert('projects', proj, mapProjectToDb);
     return res.success;
   },
@@ -501,6 +552,9 @@ export const SupabaseSync = {
   },
 
   async saveIndicator(ind: Indicator): Promise<boolean> {
+    if (ind.projectId) {
+      await ensureProjectNameInCache(ind.projectId);
+    }
     const res = await safeUpsert('project_indicators', ind, mapIndicatorToDb);
     return res.success;
   },
@@ -517,7 +571,10 @@ export const SupabaseSync = {
   },
 
   async saveOutcome(out: Outcome): Promise<boolean> {
-    const res = await safeUpsert('project_outcomes', out, (item) => cleanRowAndPrepare('project_outcomes', toDbRow(item)));
+    if (out.projectId) {
+      await ensureProjectNameInCache(out.projectId);
+    }
+    const res = await safeUpsert('project_outcomes', out, mapOutcomeToDb);
     return res.success;
   },
 
