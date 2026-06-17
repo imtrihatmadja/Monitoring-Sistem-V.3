@@ -11,6 +11,8 @@ import {
   INITIAL_REFLECTIONS,
   INITIAL_DOCUMENTS,
 } from './data';
+import { SupabaseSync } from './lib/supabaseSync';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 // Import Tab Components
 import { DashboardTab } from './components/DashboardTab';
@@ -98,7 +100,7 @@ export default function App() {
   // Initialize data stores
   useEffect(() => {
     // Force a one-time clear of previous dummy local storage to ensure the user gets a completely empty database
-    const clearedFlag = localStorage.getItem('dfw_db_cleared_v1');
+    const clearedFlag = localStorage.getItem('dfw_db_cleared_v1_empty');
     if (!clearedFlag) {
       localStorage.removeItem('dfw_projects');
       localStorage.removeItem('dfw_indicators');
@@ -110,80 +112,93 @@ export default function App() {
       localStorage.removeItem('dfw_reflections');
       localStorage.removeItem('dfw_documents');
       localStorage.removeItem('dfw_staff');
-      localStorage.setItem('dfw_db_cleared_v1', 'true');
+      localStorage.setItem('dfw_db_cleared_v1_empty', 'true');
     }
 
-    // Read local storages or load initial structures
-    const storedProjects = localStorage.getItem('dfw_projects');
-    const storedIndicators = localStorage.getItem('dfw_indicators');
-    const storedOutcomes = localStorage.getItem('dfw_outcomes');
-    const storedActivities = localStorage.getItem('dfw_activities');
-    const storedBeneficiaries = localStorage.getItem('dfw_beneficiaries');
-    const storedIssues = localStorage.getItem('dfw_issues');
-    const storedStaff = localStorage.getItem('dfw_staff');
-    const storedSubActivities = localStorage.getItem('dfw_sub_activities');
-    const storedReflections = localStorage.getItem('dfw_reflections');
+    const loadLocalFallback = () => {
+      const storedProjects = localStorage.getItem('dfw_projects');
+      const storedIndicators = localStorage.getItem('dfw_indicators');
+      const storedOutcomes = localStorage.getItem('dfw_outcomes');
+      const storedActivities = localStorage.getItem('dfw_activities');
+      const storedBeneficiaries = localStorage.getItem('dfw_beneficiaries');
+      const storedIssues = localStorage.getItem('dfw_issues');
+      const storedStaff = localStorage.getItem('dfw_staff');
+      const storedSubActivities = localStorage.getItem('dfw_sub_activities');
+      const storedReflections = localStorage.getItem('dfw_reflections');
+      const storedDocuments = localStorage.getItem('dfw_documents');
 
-    if (storedProjects) setProjects(JSON.parse(storedProjects));
-    else {
-      setProjects(INITIAL_PROJECTS);
-      localStorage.setItem('dfw_projects', JSON.stringify(INITIAL_PROJECTS));
+      setProjects(storedProjects ? JSON.parse(storedProjects) : INITIAL_PROJECTS);
+      setIndicators(storedIndicators ? JSON.parse(storedIndicators) : INITIAL_INDICATORS);
+      setOutcomes(storedOutcomes ? JSON.parse(storedOutcomes) : INITIAL_OUTCOMES);
+      setActivities(storedActivities ? JSON.parse(storedActivities) : INITIAL_ACTIVITIES);
+      setBeneficiaries(storedBeneficiaries ? JSON.parse(storedBeneficiaries) : INITIAL_BENEFICIARIES);
+      setIssues(storedIssues ? JSON.parse(storedIssues) : INITIAL_ISSUES);
+      setStaff(storedStaff ? JSON.parse(storedStaff) : INITIAL_STAFF);
+      setSubActivities(storedSubActivities ? JSON.parse(storedSubActivities) : []);
+      setReflections(storedReflections ? JSON.parse(storedReflections) : INITIAL_REFLECTIONS);
+      setDocuments(storedDocuments ? JSON.parse(storedDocuments) : INITIAL_DOCUMENTS);
+    };
+
+    if (isSupabaseConfigured) {
+      SupabaseSync.fetchAllData().then((data) => {
+        if (data) {
+          setProjects(data.projects);
+          setIndicators(data.indicators);
+          setOutcomes(data.outcomes);
+          setActivities(data.activities);
+          setBeneficiaries(data.beneficiaries);
+          setIssues(data.issues);
+          
+          // Seed INITIAL_STAFF if empty
+          if (data.staff.length === 0 && INITIAL_STAFF.length > 0) {
+            setStaff(INITIAL_STAFF);
+            INITIAL_STAFF.forEach(member => SupabaseSync.saveStaff(member));
+          } else {
+            setStaff(data.staff);
+          }
+          
+          setSubActivities(data.subActivities);
+          setReflections(data.reflections);
+          setDocuments(data.documents);
+        } else {
+          console.warn('Supabase fetch returned null, falling back to localStorage');
+          loadLocalFallback();
+        }
+      }).catch((err) => {
+        console.error('Failed to load from Supabase:', err);
+        loadLocalFallback();
+      });
+    } else {
+      loadLocalFallback();
     }
+  }, []);
 
-    if (storedIndicators) setIndicators(JSON.parse(storedIndicators));
-    else {
-      setIndicators(INITIAL_INDICATORS);
-      localStorage.setItem('dfw_indicators', JSON.stringify(INITIAL_INDICATORS));
-    }
+  // Setup Subscription Real-time untuk sinkronisasi antarterminal pengguna secara instan
+  useEffect(() => {
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('realtime_sync')
+        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+          SupabaseSync.fetchAllData().then((data) => {
+            if (data) {
+              setProjects(data.projects);
+              setIndicators(data.indicators);
+              setOutcomes(data.outcomes);
+              setActivities(data.activities);
+              setBeneficiaries(data.beneficiaries);
+              setIssues(data.issues);
+              setStaff(data.staff);
+              setSubActivities(data.subActivities);
+              setReflections(data.reflections);
+              setDocuments(data.documents);
+            }
+          });
+        })
+        .subscribe();
 
-    if (storedOutcomes) setOutcomes(JSON.parse(storedOutcomes));
-    else {
-      setOutcomes(INITIAL_OUTCOMES);
-      localStorage.setItem('dfw_outcomes', JSON.stringify(INITIAL_OUTCOMES));
-    }
-
-    if (storedActivities) setActivities(JSON.parse(storedActivities));
-    else {
-      setActivities(INITIAL_ACTIVITIES);
-      localStorage.setItem('dfw_activities', JSON.stringify(INITIAL_ACTIVITIES));
-    }
-
-    if (storedBeneficiaries) setBeneficiaries(JSON.parse(storedBeneficiaries));
-    else {
-      setBeneficiaries(INITIAL_BENEFICIARIES);
-      localStorage.setItem('dfw_beneficiaries', JSON.stringify(INITIAL_BENEFICIARIES));
-    }
-
-    if (storedIssues) setIssues(JSON.parse(storedIssues));
-    else {
-      setIssues(INITIAL_ISSUES);
-      localStorage.setItem('dfw_issues', JSON.stringify(INITIAL_ISSUES));
-    }
-
-    if (storedStaff) setStaff(JSON.parse(storedStaff));
-    else {
-      setStaff(INITIAL_STAFF);
-      localStorage.setItem('dfw_staff', JSON.stringify(INITIAL_STAFF));
-    }
-
-    if (storedSubActivities) setSubActivities(JSON.parse(storedSubActivities));
-    else {
-      const defaultSubs: SubActivity[] = [];
-      setSubActivities(defaultSubs);
-      localStorage.setItem('dfw_sub_activities', JSON.stringify(defaultSubs));
-    }
-
-    if (storedReflections) setReflections(JSON.parse(storedReflections));
-    else {
-      setReflections(INITIAL_REFLECTIONS);
-      localStorage.setItem('dfw_reflections', JSON.stringify(INITIAL_REFLECTIONS));
-    }
-
-    const storedDocuments = localStorage.getItem('dfw_documents');
-    if (storedDocuments) setDocuments(JSON.parse(storedDocuments));
-    else {
-      setDocuments(INITIAL_DOCUMENTS);
-      localStorage.setItem('dfw_documents', JSON.stringify(INITIAL_DOCUMENTS));
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, []);
 
@@ -191,46 +206,136 @@ export default function App() {
   const updateDocumentsInStorage = (newList: ProjectDocument[]) => {
     setDocuments(newList);
     localStorage.setItem('dfw_documents', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = documents.filter(d => !newList.some(item => item.id === d.id));
+      deleted.forEach(d => SupabaseSync.deleteDocument(d.id));
+      newList.forEach(item => {
+        const oldItem = documents.find(d => d.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveDocument(item);
+        }
+      });
+    }
   };
 
   const updateProjectsInStorage = (newList: Project[]) => {
     setProjects(newList);
     localStorage.setItem('dfw_projects', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = projects.filter(p => !newList.some(item => item.id === p.id));
+      deleted.forEach(p => SupabaseSync.deleteProject(p.id));
+      newList.forEach(item => {
+        const oldItem = projects.find(p => p.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveProject(item);
+        }
+      });
+    }
   };
 
   const updateIndicatorsInStorage = (newList: Indicator[]) => {
     setIndicators(newList);
     localStorage.setItem('dfw_indicators', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = indicators.filter(i => !newList.some(item => item.id === i.id));
+      deleted.forEach(i => SupabaseSync.deleteIndicator(i.id));
+      newList.forEach(item => {
+        const oldItem = indicators.find(i => i.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveIndicator(item);
+        }
+      });
+    }
   };
 
   const updateOutcomesInStorage = (newList: Outcome[]) => {
     setOutcomes(newList);
     localStorage.setItem('dfw_outcomes', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = outcomes.filter(o => !newList.some(item => item.id === o.id));
+      deleted.forEach(o => SupabaseSync.deleteOutcome(o.id));
+      newList.forEach(item => {
+        const oldItem = outcomes.find(o => o.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveOutcome(item);
+        }
+      });
+    }
   };
 
   const updateActivitiesInStorage = (newList: Activity[]) => {
     setActivities(newList);
     localStorage.setItem('dfw_activities', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = activities.filter(a => !newList.some(item => item.id === a.id));
+      deleted.forEach(a => SupabaseSync.deleteActivity(a.id));
+      newList.forEach(item => {
+        const oldItem = activities.find(a => a.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveActivity(item);
+        }
+      });
+    }
   };
 
   const updateBeneficiariesInStorage = (newList: Beneficiary[]) => {
     setBeneficiaries(newList);
     localStorage.setItem('dfw_beneficiaries', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = beneficiaries.filter(b => !newList.some(item => item.id === b.id));
+      deleted.forEach(b => SupabaseSync.deleteBeneficiary(b.id));
+      newList.forEach(item => {
+        const oldItem = beneficiaries.find(b => b.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveBeneficiary(item);
+        }
+      });
+    }
   };
 
   const updateIssuesInStorage = (newList: Issue[]) => {
     setIssues(newList);
     localStorage.setItem('dfw_issues', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = issues.filter(i => !newList.some(item => item.id === i.id));
+      deleted.forEach(i => SupabaseSync.deleteIssue(i.id));
+      newList.forEach(item => {
+        const oldItem = issues.find(i => i.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveIssue(item);
+        }
+      });
+    }
   };
 
   const updateSubActivitiesInStorage = (newList: SubActivity[]) => {
     setSubActivities(newList);
     localStorage.setItem('dfw_sub_activities', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = subActivities.filter(s => !newList.some(item => item.id === s.id));
+      deleted.forEach(s => SupabaseSync.deleteSubActivity(s.id));
+      newList.forEach(item => {
+        const oldItem = subActivities.find(s => s.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveSubActivity(item);
+        }
+      });
+    }
   };
 
   const updateReflectionsInStorage = (newList: ProjectReflection[]) => {
     setReflections(newList);
     localStorage.setItem('dfw_reflections', JSON.stringify(newList));
+    if (isSupabaseConfigured) {
+      const deleted = reflections.filter(r => !newList.some(item => item.id === r.id));
+      deleted.forEach(r => SupabaseSync.deleteReflection(r.id));
+      newList.forEach(item => {
+        const oldItem = reflections.find(r => r.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          SupabaseSync.saveReflection(item);
+        }
+      });
+    }
   };
 
   // Recalculates project overall progress dynamically based on activity progress averages
