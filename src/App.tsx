@@ -150,32 +150,37 @@ export default function App() {
     };
 
     if (isSupabaseConfigured) {
-      SupabaseSync.fetchAllData().then((data) => {
-        if (data) {
-          setProjects(data.projects);
-          setIndicators(data.indicators);
-          setOutcomes(data.outcomes);
-          setActivities(data.activities);
-          setBeneficiaries(data.beneficiaries);
-          setIssues(data.issues);
-          
-          // Seed INITIAL_STAFF if empty
-          if (data.staff.length === 0 && INITIAL_STAFF.length > 0) {
-            setStaff(INITIAL_STAFF);
-            INITIAL_STAFF.forEach(member => SupabaseSync.saveStaff(member));
+      SupabaseSync.fetchSchemaInfo().then(() => {
+        SupabaseSync.fetchAllData().then((data) => {
+          if (data) {
+            setProjects(data.projects);
+            setIndicators(data.indicators);
+            setOutcomes(data.outcomes);
+            setActivities(data.activities);
+            setBeneficiaries(data.beneficiaries);
+            setIssues(data.issues);
+            
+            // Seed INITIAL_STAFF if empty
+            if (data.staff.length === 0 && INITIAL_STAFF.length > 0) {
+              setStaff(INITIAL_STAFF);
+              INITIAL_STAFF.forEach(member => SupabaseSync.saveStaff(member));
+            } else {
+              setStaff(data.staff);
+            }
+            
+            setSubActivities(data.subActivities);
+            setReflections(data.reflections);
+            setDocuments(data.documents);
           } else {
-            setStaff(data.staff);
+            console.warn('Supabase fetch returned null, falling back to localStorage');
+            loadLocalFallback();
           }
-          
-          setSubActivities(data.subActivities);
-          setReflections(data.reflections);
-          setDocuments(data.documents);
-        } else {
-          console.warn('Supabase fetch returned null, falling back to localStorage');
+        }).catch((err) => {
+          console.error('Failed to load from Supabase:', err);
           loadLocalFallback();
-        }
+        });
       }).catch((err) => {
-        console.error('Failed to load from Supabase:', err);
+        console.error('Failed to load Supabase schema:', err);
         loadLocalFallback();
       });
     } else {
@@ -1985,6 +1990,7 @@ export default function App() {
                       // Successfully verified! Reinitialize global db client
                       reinitializeSupabase(urlStr, keyStr);
                       setDbIsConfigured(true);
+                      await SupabaseSync.fetchSchemaInfo(urlStr, keyStr);
                       setSyncToast('success');
                       setSyncToastMsg('Koneksi Supabase berhasil diproses dan disimpan secara permanen!');
                       setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 4000);
