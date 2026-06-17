@@ -3,15 +3,12 @@ import { Project, Indicator, Outcome, Activity, SubActivity, Beneficiary, Issue,
 
 // Generic Mapper to handle both snake_case in Supabase and camelCase in React
 function toDbRow(data: any): any {
+  if (!data) return data;
   const row: any = {};
   for (const key of Object.keys(data)) {
     // Map camelCase to snake_case
     const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     row[snakeKey] = data[key];
-    // Also keep the original camelCase key to ensure backward compatibility/flexible schema
-    if (snakeKey !== key) {
-      row[key] = data[key];
-    }
   }
   return row;
 }
@@ -23,10 +20,6 @@ function fromDbRow<T>(row: any): T {
     // Map snake_case to camelCase
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
     result[camelKey] = row[key];
-    // Also keep snake_case keys in object in case they are used
-    if (camelKey !== key && result[key] === undefined) {
-      result[key] = row[key];
-    }
   }
   return result as T;
 }

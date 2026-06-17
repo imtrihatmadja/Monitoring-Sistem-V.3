@@ -95,7 +95,8 @@ export default function App() {
   const [selectedStaffTasksName, setSelectedStaffTasksName] = useState<string>('');
 
   // Sync validation status toast
-  const [syncToast, setSyncToast] = useState<'success' | 'info' | ''>('');
+  const [syncToast, setSyncToast] = useState<'success' | 'info' | 'error' | ''>('');
+  const [syncToastMsg, setSyncToastMsg] = useState<string>('');
 
   // Initialize data stores
   useEffect(() => {
@@ -202,17 +203,35 @@ export default function App() {
     }
   }, []);
 
-  // Save states helper
+  // Save states helper with user-friendly feedback
+  const handleSyncResult = (promise: Promise<boolean>, actionText: string) => {
+    promise.then((success) => {
+      if (success) {
+        setSyncToast('success');
+        setSyncToastMsg(`${actionText} berhasil disinkronisasi ke Supabase!`);
+        setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 3000);
+      } else {
+        setSyncToast('error');
+        setSyncToastMsg(`Gagal sinkronisasi ${actionText.toLowerCase()} ke Supabase. Periksa schema tabel Anda.`);
+        setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 6000);
+      }
+    }).catch(err => {
+      setSyncToast('error');
+      setSyncToastMsg(`Error sinkronisasi: ${err.message || err}`);
+      setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 6000);
+    });
+  };
+
   const updateDocumentsInStorage = (newList: ProjectDocument[]) => {
     setDocuments(newList);
     localStorage.setItem('dfw_documents', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = documents.filter(d => !newList.some(item => item.id === d.id));
-      deleted.forEach(d => SupabaseSync.deleteDocument(d.id));
+      deleted.forEach(d => handleSyncResult(SupabaseSync.deleteDocument(d.id), "Penghapusan dokumen"));
       newList.forEach(item => {
         const oldItem = documents.find(d => d.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveDocument(item);
+          handleSyncResult(SupabaseSync.saveDocument(item), "Dokumen");
         }
       });
     }
@@ -223,11 +242,11 @@ export default function App() {
     localStorage.setItem('dfw_projects', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = projects.filter(p => !newList.some(item => item.id === p.id));
-      deleted.forEach(p => SupabaseSync.deleteProject(p.id));
+      deleted.forEach(p => handleSyncResult(SupabaseSync.deleteProject(p.id), "Penghapusan proyek"));
       newList.forEach(item => {
         const oldItem = projects.find(p => p.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveProject(item);
+          handleSyncResult(SupabaseSync.saveProject(item), "Data proyek");
         }
       });
     }
@@ -238,11 +257,11 @@ export default function App() {
     localStorage.setItem('dfw_indicators', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = indicators.filter(i => !newList.some(item => item.id === i.id));
-      deleted.forEach(i => SupabaseSync.deleteIndicator(i.id));
+      deleted.forEach(i => handleSyncResult(SupabaseSync.deleteIndicator(i.id), "Penghapusan indikator"));
       newList.forEach(item => {
         const oldItem = indicators.find(i => i.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveIndicator(item);
+          handleSyncResult(SupabaseSync.saveIndicator(item), "Indikator");
         }
       });
     }
@@ -253,11 +272,11 @@ export default function App() {
     localStorage.setItem('dfw_outcomes', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = outcomes.filter(o => !newList.some(item => item.id === o.id));
-      deleted.forEach(o => SupabaseSync.deleteOutcome(o.id));
+      deleted.forEach(o => handleSyncResult(SupabaseSync.deleteOutcome(o.id), "Penghapusan outcomes"));
       newList.forEach(item => {
         const oldItem = outcomes.find(o => o.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveOutcome(item);
+          handleSyncResult(SupabaseSync.saveOutcome(item), "Hasil/Outcome");
         }
       });
     }
@@ -268,11 +287,11 @@ export default function App() {
     localStorage.setItem('dfw_activities', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = activities.filter(a => !newList.some(item => item.id === a.id));
-      deleted.forEach(a => SupabaseSync.deleteActivity(a.id));
+      deleted.forEach(a => handleSyncResult(SupabaseSync.deleteActivity(a.id), "Penghapusan kegiatan"));
       newList.forEach(item => {
         const oldItem = activities.find(a => a.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveActivity(item);
+          handleSyncResult(SupabaseSync.saveActivity(item), "Kegiatan");
         }
       });
     }
@@ -283,11 +302,11 @@ export default function App() {
     localStorage.setItem('dfw_beneficiaries', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = beneficiaries.filter(b => !newList.some(item => item.id === b.id));
-      deleted.forEach(b => SupabaseSync.deleteBeneficiary(b.id));
+      deleted.forEach(b => handleSyncResult(SupabaseSync.deleteBeneficiary(b.id), "Penghapusan penerima manfaat"));
       newList.forEach(item => {
         const oldItem = beneficiaries.find(b => b.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveBeneficiary(item);
+          handleSyncResult(SupabaseSync.saveBeneficiary(item), "Penerima manfaat");
         }
       });
     }
@@ -298,11 +317,11 @@ export default function App() {
     localStorage.setItem('dfw_issues', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = issues.filter(i => !newList.some(item => item.id === i.id));
-      deleted.forEach(i => SupabaseSync.deleteIssue(i.id));
+      deleted.forEach(i => handleSyncResult(SupabaseSync.deleteIssue(i.id), "Penghapusan isu"));
       newList.forEach(item => {
         const oldItem = issues.find(i => i.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveIssue(item);
+          handleSyncResult(SupabaseSync.saveIssue(item), "Isu");
         }
       });
     }
@@ -313,11 +332,11 @@ export default function App() {
     localStorage.setItem('dfw_sub_activities', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = subActivities.filter(s => !newList.some(item => item.id === s.id));
-      deleted.forEach(s => SupabaseSync.deleteSubActivity(s.id));
+      deleted.forEach(s => handleSyncResult(SupabaseSync.deleteSubActivity(s.id), "Penghapusan sub-kegiatan"));
       newList.forEach(item => {
         const oldItem = subActivities.find(s => s.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveSubActivity(item);
+          handleSyncResult(SupabaseSync.saveSubActivity(item), "Sub-kegiatan");
         }
       });
     }
@@ -328,11 +347,11 @@ export default function App() {
     localStorage.setItem('dfw_reflections', JSON.stringify(newList));
     if (isSupabaseConfigured) {
       const deleted = reflections.filter(r => !newList.some(item => item.id === r.id));
-      deleted.forEach(r => SupabaseSync.deleteReflection(r.id));
+      deleted.forEach(r => handleSyncResult(SupabaseSync.deleteReflection(r.id), "Penghapusan refleksi"));
       newList.forEach(item => {
         const oldItem = reflections.find(r => r.id === item.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
-          SupabaseSync.saveReflection(item);
+          handleSyncResult(SupabaseSync.saveReflection(item), "Catatan refleksi");
         }
       });
     }
@@ -1560,10 +1579,14 @@ export default function App() {
         <div className="flex-1 p-6 overflow-y-auto max-w-7xl w-full mx-auto space-y-6">
           {/* Quick sync feedback toast indicator */}
           {syncToast && (
-            <div className="bg-emerald-500 text-white font-extrabold text-xs py-2 px-4 rounded-xl shadow-xs animate-slide-in flex items-center gap-2">
+            <div className={`font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-xs animate-slide-in flex items-center gap-2 ${
+              syncToast === 'success' ? 'bg-emerald-500 text-white' :
+              syncToast === 'error' ? 'bg-rose-500 text-white' :
+              'bg-sky-500 text-white'
+            }`}>
               <CheckCircle2 className="w-4 h-4" />
               <span>
-                {syncToast === 'success' ? 'Data berhasil disinkronisasi dengan Supabase Cloud!' : 'Aksi proyek berhasil diproses.'}
+                {syncToastMsg || (syncToast === 'success' ? 'Data berhasil disinkronisasi dengan Supabase Cloud!' : 'Aksi proyek berhasil diproses.')}
               </span>
             </div>
           )}
