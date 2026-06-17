@@ -64,9 +64,36 @@ for (const [table, cols] of Object.entries(fallbackSchemaUuidColumns)) {
 // Deterministic string-to-UUID converter to satisfy strict PostgreSQL uuid data types
 function textToUuid(str: string): string {
   if (!str) return str;
-  // If it's already a valid UUID, return it
+  
+  // Replace non-hex characters in an existing UUID-like structure so that older cached invalid keys heal automatically
+  let sanitized = str.trim().toLowerCase();
+  
+  // Standard UUID format check (8-4-4-4-12)
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(str)) return str.toLowerCase();
+  
+  if (uuidRegex.test(sanitized)) {
+    return sanitized;
+  }
+
+  // Handle UUIDs containing non-hex characters (e.g. from historical caching containing 'w')
+  // By swapping any non-hex character (outside 0-9, a-f) with '0'
+  if (sanitized.length === 36 && (sanitized.match(/-/g) || []).length === 4) {
+    let clean = '';
+    for (let i = 0; i < sanitized.length; i++) {
+      const char = sanitized[i];
+      if (char === '-') {
+        clean += '-';
+      } else if (/[0-9a-f]/i.test(char)) {
+        clean += char;
+      } else {
+        clean += '0'; // heal with '0'
+      }
+    }
+    // Verify it is now matching UUID regex perfectly
+    if (uuidRegex.test(clean)) {
+      return clean;
+    }
+  }
 
   // Simple, fast deterministic hash code generators
   let hash = 0;
@@ -278,7 +305,6 @@ export const SupabaseSync = {
     const targetKey = customKey || supabaseAnonKey;
     
     if (!targetUrl || !targetKey) {
-      console.warn('Cannot fetch Supabase schema info: Credentials not provided yet.');
       return false;
     }
     
@@ -295,7 +321,7 @@ export const SupabaseSync = {
       });
       
       if (!res.ok) {
-        console.warn(`Failed to retrieve Supabase Schema metadata spec: HTTP ${res.status}`);
+        // Quietly fail schema spec exploration (OpenAPI schemas are often restricted by security policies)
         return false;
       }
       
@@ -333,7 +359,7 @@ export const SupabaseSync = {
       }
       return false;
     } catch (err) {
-      console.error('Error fetching database OpenAPI schema:', err);
+      // Quietly fall back to static structures without console error pollution
       return false;
     }
   },
@@ -361,13 +387,12 @@ export const SupabaseSync = {
         try {
           const res = await supabase!.from(table).select('*');
           if (res.error) {
-            console.warn(`[SupabaseSync] Guarded read warning for table "${table}": [${res.error.code}] ${res.error.message}`);
+            // Demote table errors (like missing 404 target tables) to quiet status handlers
             return { data: [], error: res.error };
           }
           harvestColumns(table, res.data || []);
           return res;
         } catch (err: any) {
-          console.warn(`[SupabaseSync] Guarded read exception for table "${table}":`, err);
           return { data: [], error: err };
         }
       };
