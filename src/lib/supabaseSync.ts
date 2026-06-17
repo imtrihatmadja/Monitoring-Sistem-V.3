@@ -88,11 +88,65 @@ function textToUuid(str: string): string {
   // Format as standard xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx UUID v4 compliant string
   const part1 = absHash;
   const part2 = '2026'; // Fixed segment representing system year
-  const part3 = '4dfw'; // Custom identifier segment representing DFW Indonesia
+  const part3 = '4df0'; // Custom identifier segment representing DFW Indonesia (using '0' instead of 'w' for valid Hexadecimal syntax)
   const part4 = '8' + absHash2.substring(0, 3); // Starts with 8-11 pattern (uuid-conformant variant)
   const part5 = absHash2.substring(3).padEnd(12, 'f');
 
   return `${part1}-${part2}-${part3}-${part4}-${part5}`.substring(0, 36);
+}
+
+// Recursive self-healing wrapper to rescue operations failing on schema discrepancies (e.g. missing columns)
+async function safeUpsert(
+  tableName: string, 
+  item: any, 
+  mappingFn: (v: any) => any, 
+  retryCount = 0
+): Promise<{ success: boolean; error?: any }> {
+  if (!supabase) return { success: false };
+  if (retryCount > 10) {
+    console.error(`Exceeded maximum retry count of 10 for table ${tableName}`);
+    return { success: false, error: new Error('Max retry limit exceeded') };
+  }
+
+  // Generate payload using the corresponding map function
+  const dbPayload = mappingFn(item);
+  const { error } = await supabase.from(tableName).upsert(dbPayload);
+
+  if (error) {
+    const isPgrst204 = error.code === 'PGRST204';
+    const isColumnMissing = error.message && (
+      error.message.includes("Could not find the '") || 
+      (error.message.includes("column") && error.message.includes("does not exist"))
+    );
+
+    if (isPgrst204 || isColumnMissing) {
+      let missingCol: string | null = null;
+      
+      const match1 = error.message ? error.message.match(/Could not find the '([^']+)' column/) : null;
+      const match2 = error.message ? error.message.match(/column "([^"]+)" of relation/) : null;
+      const match3 = error.message ? error.message.match(/column "([^"]+)" does not exist/) : null;
+      
+      if (match1) missingCol = match1[1];
+      else if (match2) missingCol = match2[1];
+      else if (match3) missingCol = match3[1];
+
+      if (missingCol) {
+        console.warn(`[Self-Healing] Removing column "${missingCol}" from payload/schema cache for table "${tableName}" because it doesn't exist in DB.`);
+        
+        // Remove missing column from schemaColumns
+        const currentCols = schemaColumns[tableName] || fallbackSchemaColumns[tableName] || Object.keys(dbPayload);
+        schemaColumns[tableName] = currentCols.filter(c => c !== missingCol);
+        
+        // Recursively retry upsert with updated schema definitions
+        return safeUpsert(tableName, item, mappingFn, retryCount + 1);
+      }
+    }
+
+    console.error(`Error saving ${tableName} to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
+    return { success: false, error };
+  }
+
+  return { success: true };
 }
 
 // Generic Mapper to handle both snake_case in Supabase and camelCase in React
@@ -292,10 +346,33 @@ export const SupabaseSync = {
     try {
       // Ensure we fetch schema beforehand to align parsing
       if (!isSchemaFetched) {
-        await this.fetchSchemaInfo();
+        await this.fetchSchemaInfo().catch(() => {});
       }
 
-      // Parallel fetches for speed and low latency
+      // Helper to dynamically harvest existing columns from fetched data
+      const harvestColumns = (table: string, data: any[]) => {
+        if (data && data.length > 0) {
+          // Track and cache actual column names present inside rows returned from DB
+          schemaColumns[table] = Object.keys(data[0]);
+        }
+      };
+
+      const fetchGuarded = async (table: string) => {
+        try {
+          const res = await supabase!.from(table).select('*');
+          if (res.error) {
+            console.warn(`[SupabaseSync] Guarded read warning for table "${table}": [${res.error.code}] ${res.error.message}`);
+            return { data: [], error: res.error };
+          }
+          harvestColumns(table, res.data || []);
+          return res;
+        } catch (err: any) {
+          console.warn(`[SupabaseSync] Guarded read exception for table "${table}":`, err);
+          return { data: [], error: err };
+        }
+      };
+
+      // Parallel fetches with guarded readers to insulate app against missing/invalid tables
       const [
         resProjects,
         resIndicators,
@@ -308,16 +385,16 @@ export const SupabaseSync = {
         resReflections,
         resDocs
       ] = await Promise.all([
-        supabase.from('projects').select('*'),
-        supabase.from('project_indicators').select('*'),
-        supabase.from('project_outcomes').select('*'),
-        supabase.from('project_activities').select('*'),
-        supabase.from('beneficiaries').select('*'),
-        supabase.from('issues').select('*'),
-        supabase.from('staff').select('*'),
-        supabase.from('project_sub_activities').select('*').then(res => res, () => ({ data: [], error: null })), // handle missing table safely
-        supabase.from('project_reflections').select('*'),
-        supabase.from('project_documents').select('*').then(res => res, () => ({ data: [], error: null }))
+        fetchGuarded('projects'),
+        fetchGuarded('project_indicators'),
+        fetchGuarded('project_outcomes'),
+        fetchGuarded('project_activities'),
+        fetchGuarded('beneficiaries'),
+        fetchGuarded('issues'),
+        fetchGuarded('staff'),
+        fetchGuarded('project_sub_activities'),
+        fetchGuarded('project_reflections'),
+        fetchGuarded('project_documents')
       ]);
 
       // Helper to process IDs consistently
@@ -381,16 +458,10 @@ export const SupabaseSync = {
     }
   },
 
-  // Save/Upsert handlers
+  // Save/Upsert handlers using self-healing safeUpsert to protect against schema discrepancies
   async saveProject(proj: Project): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapProjectToDb(proj);
-    const { error } = await supabase.from('projects').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving project to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('projects', proj, mapProjectToDb);
+    return res.success;
   },
 
   async deleteProject(projId: string): Promise<boolean> {
@@ -405,14 +476,8 @@ export const SupabaseSync = {
   },
 
   async saveIndicator(ind: Indicator): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapIndicatorToDb(ind);
-    const { error } = await supabase.from('project_indicators').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving indicator to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('project_indicators', ind, mapIndicatorToDb);
+    return res.success;
   },
 
   async deleteIndicator(indId: string): Promise<boolean> {
@@ -427,14 +492,8 @@ export const SupabaseSync = {
   },
 
   async saveOutcome(out: Outcome): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = cleanRowAndPrepare('project_outcomes', toDbRow(out));
-    const { error } = await supabase.from('project_outcomes').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving outcome to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('project_outcomes', out, (item) => cleanRowAndPrepare('project_outcomes', toDbRow(item)));
+    return res.success;
   },
 
   async deleteOutcome(outId: string): Promise<boolean> {
@@ -449,14 +508,8 @@ export const SupabaseSync = {
   },
 
   async saveActivity(act: Activity): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapActivityToDb(act);
-    const { error } = await supabase.from('project_activities').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving activity to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('project_activities', act, mapActivityToDb);
+    return res.success;
   },
 
   async deleteActivity(actId: string): Promise<boolean> {
@@ -471,16 +524,8 @@ export const SupabaseSync = {
   },
 
   async saveSubActivity(subAct: SubActivity): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = cleanRowAndPrepare('project_sub_activities', toDbRow(subAct));
-    try {
-      const { error } = await supabase.from('project_sub_activities').upsert(dbPayload);
-      if (error) throw error;
-      return true;
-    } catch (e: any) {
-      console.warn(`Could not save sub-activity to project_sub_activities (table might be missing/mismatched): [${e.code || '-'}] ${e.message || e}`, dbPayload);
-      return false;
-    }
+    const res = await safeUpsert('project_sub_activities', subAct, (item) => cleanRowAndPrepare('project_sub_activities', toDbRow(item)));
+    return res.success;
   },
 
   async deleteSubActivity(subActId: string): Promise<boolean> {
@@ -497,14 +542,8 @@ export const SupabaseSync = {
   },
 
   async saveBeneficiary(ben: Beneficiary): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapBeneficiaryToDb(ben);
-    const { error } = await supabase.from('beneficiaries').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving beneficiary to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('beneficiaries', ben, mapBeneficiaryToDb);
+    return res.success;
   },
 
   async deleteBeneficiary(benId: string): Promise<boolean> {
@@ -519,14 +558,8 @@ export const SupabaseSync = {
   },
 
   async saveIssue(issue: Issue): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapIssueToDb(issue);
-    const { error } = await supabase.from('issues').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving issue to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('issues', issue, mapIssueToDb);
+    return res.success;
   },
 
   async deleteIssue(issueId: string): Promise<boolean> {
@@ -541,14 +574,8 @@ export const SupabaseSync = {
   },
 
   async saveStaff(staffMember: Staff): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = cleanRowAndPrepare('staff', toDbRow(staffMember));
-    const { error } = await supabase.from('staff').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving staff to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('staff', staffMember, (item) => cleanRowAndPrepare('staff', toDbRow(item)));
+    return res.success;
   },
 
   async deleteStaff(staffId: string): Promise<boolean> {
@@ -563,14 +590,8 @@ export const SupabaseSync = {
   },
 
   async saveReflection(ref: ProjectReflection): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = mapReflectionToDb(ref);
-    const { error } = await supabase.from('project_reflections').upsert(dbPayload);
-    if (error) {
-      console.error(`Error saving reflection to Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`, dbPayload);
-      return false;
-    }
-    return true;
+    const res = await safeUpsert('project_reflections', ref, mapReflectionToDb);
+    return res.success;
   },
 
   async deleteReflection(refId: string): Promise<boolean> {
@@ -585,16 +606,8 @@ export const SupabaseSync = {
   },
 
   async saveDocument(doc: ProjectDocument): Promise<boolean> {
-    if (!supabase) return false;
-    const dbPayload = cleanRowAndPrepare('project_documents', toDbRow(doc));
-    try {
-      const { error } = await supabase.from('project_documents').upsert(dbPayload);
-      if (error) throw error;
-      return true;
-    } catch (e: any) {
-      console.warn(`Could not save document to project_documents (table might be missing/mismatched): [${e.code || '-'}] ${e.message || e}`, dbPayload);
-      return false;
-    }
+    const res = await safeUpsert('project_documents', doc, (item) => cleanRowAndPrepare('project_documents', toDbRow(item)));
+    return res.success;
   },
 
   async deleteDocument(docId: string): Promise<boolean> {
