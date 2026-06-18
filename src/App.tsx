@@ -55,6 +55,10 @@ import {
   Sparkles,
   CheckCircle2,
   FileText,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export default function App() {
@@ -102,6 +106,8 @@ export default function App() {
   const [dbIsConfigured, setDbIsConfigured] = useState(isSupabaseConfigured);
   const [isTestingDb, setIsTestingDb] = useState(false);
   const [dbError, setDbError] = useState('');
+  const [showSqlGuide, setShowSqlGuide] = useState(false);
+  const [sqlCopied, setSqlCopied] = useState(false);
 
   // Sync validation status toast
   const [syncToast, setSyncToast] = useState<'success' | 'info' | 'error' | ''>('');
@@ -2076,6 +2082,375 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* SECTION: INTEGRATED SQL DB SCHEMA HANDBOOK */}
+              <div className="border-t border-slate-100 pt-5 mt-4 space-y-4">
+                <div 
+                  onClick={() => setShowSqlGuide(!showSqlGuide)}
+                  className="p-4 bg-blue-50/50 hover:bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Database className="w-5 h-5 text-blue-600 shrink-0" />
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                        <span>🛠️ Pemasangan Skema SQL Supabase</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase font-bold tracking-wider">Penting</span>
+                      </h3>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed font-medium">
+                        Data tidak bisa masuk atau tersinkron? Gunakan skema SQL resmi di sini untuk mendaftarkan 10 tabel DFW di editor Supabase Anda.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-slate-400 group-hover:text-blue-600 transition-colors">
+                    {showSqlGuide ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </div>
+                </div>
+
+                {showSqlGuide && (
+                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-xl space-y-3.5 animate-fadeIn">
+                    <div className="space-y-1">
+                      <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Langkah-Langkah Pembuatan Tabel:</h4>
+                      <ol className="list-decimal list-inside text-xs text-slate-600 space-y-1 leading-relaxed font-medium">
+                        <li>Buka halaman dashboard projek Anda pada portal <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-bold">Supabase Cloud</a>.</li>
+                        <li>Di panel navigasi sebelah kiri, klik menu <span className="font-bold text-slate-850">"SQL Editor"</span>.</li>
+                        <li>Klik tombol <span className="font-bold text-slate-850">"+ New Query"</span> untuk membuka lembar kerja kosong.</li>
+                        <li>Klik tombol <b>"Salin Skema SQL"</b> di bawah, kemudian <b>tempel (Paste)</b> di SQL editor Supabase Anda.</li>
+                        <li>Klik tombol hijau <span className="font-bold text-green-600">"Run"</span> di sudut kanan bawah editor Supabase. Selesai!</li>
+                      </ol>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Skema SQL DFW Indonesia</label>
+                        <button
+                          onClick={() => {
+                            const sqlText = `-- SKEMA STRUKTUR DATABASE DFW INDONESIA UNTUK SUPABASE
+-- Harap jalankan seluruh instruksi di bawah ini di menu SQL Editor Supabase Anda
+
+-- 1. Tabel Projects
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    location TEXT,
+    owner TEXT,
+    donor TEXT,
+    status TEXT,
+    start_date DATE,
+    deadline DATE,
+    progress NUMERIC DEFAULT 0,
+    budget_approved DOUBLE PRECISION DEFAULT 0,
+    budget_actual DOUBLE PRECISION DEFAULT 0,
+    "desc" TEXT,
+    note TEXT,
+    goal TEXT,
+    is_archived BOOLEAN DEFAULT false,
+    archored_by TEXT,
+    archived_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 2. Tabel Project Indicators
+CREATE TABLE IF NOT EXISTS project_indicators (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    target NUMERIC DEFAULT 0,
+    current NUMERIC DEFAULT 0,
+    unit TEXT,
+    last_updated TEXT,
+    last_value NUMERIC DEFAULT 0,
+    project_name TEXT DEFAULT 'DFW Indonesia'
+);
+
+-- 3. Tabel Project Outcomes
+CREATE TABLE IF NOT EXISTS project_outcomes (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    project_name TEXT DEFAULT 'DFW Indonesia'
+);
+
+-- 4. Tabel Project Activities
+CREATE TABLE IF NOT EXISTS project_activities (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    "desc" TEXT,
+    pic TEXT,
+    status TEXT,
+    start_date DATE,
+    due_date DATE,
+    progress NUMERIC DEFAULT 0,
+    notes JSONB DEFAULT '[]'::jsonb,
+    files JSONB DEFAULT '[]'::jsonb
+);
+
+-- 5. Tabel Beneficiaries (Penerima Manfaat)
+CREATE TABLE IF NOT EXISTS beneficiaries (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT,
+    gender TEXT,
+    birth_year INTEGER,
+    location TEXT,
+    occupation TEXT,
+    email TEXT,
+    note TEXT,
+    registrations JSONB DEFAULT '[]'::jsonb
+);
+
+-- 6. Tabel Issues (Isu & Pengaduan)
+CREATE TABLE IF NOT EXISTS issues (
+    id UUID PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    category TEXT,
+    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+    activity_id UUID REFERENCES project_activities(id) ON DELETE SET NULL,
+    severity TEXT,
+    status TEXT,
+    date_occurred TEXT,
+    source_type TEXT,
+    source_link TEXT,
+    tags TEXT,
+    updates JSONB DEFAULT '[]'::jsonb
+);
+
+-- 7. Tabel Staff (Anggota Tim)
+CREATE TABLE IF NOT EXISTS staff (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT,
+    status TEXT DEFAULT 'active'
+);
+
+-- 8. Tabel Project Reflections (Catatan Belajar / Refleksi)
+CREATE TABLE IF NOT EXISTS project_reflections (
+    id UUID PRIMARY KEY,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT,
+    type TEXT,
+    date DATE,
+    what_happened TEXT,
+    what_worked TEXT,
+    what_didnt TEXT,
+    lesson TEXT NOT NULL,
+    next_steps TEXT,
+    contributor TEXT
+);
+
+-- 9. Tabel Project Documents (Dokumen / Arsip File)
+CREATE TABLE IF NOT EXISTS project_documents (
+    id UUID PRIMARY KEY,
+    project_name TEXT DEFAULT 'DFW Indonesia',
+    category TEXT,
+    file_name TEXT NOT NULL,
+    mime_type TEXT,
+    file_size BIGINT DEFAULT 0,
+    drive_file_id TEXT,
+    drive_folder_id TEXT,
+    web_view_link TEXT,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 10. Tabel Project Sub-Activities
+CREATE TABLE IF NOT EXISTS project_sub_activities (
+    id UUID PRIMARY KEY,
+    parent_activity_id UUID REFERENCES project_activities(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    "desc" TEXT,
+    pic TEXT,
+    status TEXT,
+    priority TEXT,
+    due DATE
+);
+
+-- MATIKAN RLS AGAR INTERAKSI INTEGRASI DAPAT DISINKRONISASI AKTIF LANGSUNG
+ALTER TABLE projects DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_indicators DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_outcomes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_activities DISABLE ROW LEVEL SECURITY;
+ALTER TABLE beneficiaries DISABLE ROW LEVEL SECURITY;
+ALTER TABLE issues DISABLE ROW LEVEL SECURITY;
+ALTER TABLE staff DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_reflections DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_documents DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;`;
+                            navigator.clipboard.writeText(sqlText);
+                            setSqlCopied(true);
+                            setTimeout(() => setSqlCopied(false), 2500);
+                          }}
+                          className="px-2.5 py-1 text-[10px] font-bold shadow-xs hover:shadow-sm bg-white hover:bg-slate-50 border border-slate-250 text-blue-600 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all animate-none inline-flex"
+                        >
+                          {sqlCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-500" />
+                              <span className="text-emerald-600 font-bold">Tersalin!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Salin Skema SQL</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="bg-slate-900 text-slate-100 rounded-xl p-3 text-[10px] font-mono leading-relaxed h-52 overflow-y-auto border border-slate-800 shadow-inner select-text">
+                        <span className="text-amber-400">-- 1. Tabel Projects</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> projects ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;location TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;owner TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;donor TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;start_date DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;deadline DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;progress NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;budget_approved DOUBLE PRECISION <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;budget_actual DOUBLE PRECISION <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;note TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;goal TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;is_archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archored_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_at TIMESTAMP WITH TIME ZONE{"\n"}
+                        );{"\n"}{"\n"}
+                        
+                        <span className="text-amber-400">-- 2. Tabel Project Indicators</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_indicators ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;target NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;current NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;unit TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;last_updated TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;last_value NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 3. Tabel Project Outcomes</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_outcomes ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 4. Tabel Project Activities</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_activities ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;pic TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;start_date DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;due_date DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;progress NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;notes JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;files JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 5. Tabel Beneficiaries</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> beneficiaries ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;phone TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;gender TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;birth_year INTEGER,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;location TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;occupation TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;email TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;note TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;registrations JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 6. Tabel Issues</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> issues ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;category TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE SET NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;activity_id UUID <span className="text-emerald-400">REFERENCES</span> project_activities(id) <span className="text-purple-400">ON DELETE SET NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;severity TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;date_occurred TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;source_type TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;source_link TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;tags TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 7. Tabel Staff</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> staff ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;role TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'active'</span>{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 8. Tabel Project Reflections</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_reflections ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;type TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;date DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;what_happened TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;what_worked TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;what_didnt TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;lesson TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;next_steps TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;contributor TEXT{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 9. Tabel Project Documents</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_documents ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;category TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;file_name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;mime_type TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;file_size BIGINT <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;drive_file_id TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;drive_folder_id TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;web_view_link TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- 10. Tabel Project Sub-Activities</span>{"\n"}
+                        <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> project_sub_activities ({"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;parent_activity_id UUID <span className="text-emerald-400">REFERENCES</span> project_activities(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;pic TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;priority TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;due DATE{"\n"}
+                        );{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- PENTING: DISABLE ROW LEVEL SECURITY (RLS)</span>{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
