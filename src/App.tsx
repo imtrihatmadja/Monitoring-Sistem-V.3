@@ -188,31 +188,51 @@ export default function App() {
     }
   }, []);
 
-  // Setup Subscription Real-time untuk sinkronisasi antarterminal pengguna secara instan
+  // Setup Subscription Real-time untuk sinkronisasi antarterminal pengguna secara instan (Dioptimalkan dengan debounce dan selective-table fetching)
   useEffect(() => {
     if (dbIsConfigured && supabase) {
+      const timeouts: Record<string, any> = {};
+
+      const syncTable = (table: string) => {
+        SupabaseSync.fetchSingleTable(table).then((data) => {
+          if (!data) return;
+          
+          if (table === 'projects') setProjects(data);
+          else if (table === 'project_indicators') setIndicators(data);
+          else if (table === 'project_outcomes') setOutcomes(data);
+          else if (table === 'project_activities') setActivities(data);
+          else if (table === 'beneficiaries') setBeneficiaries(data);
+          else if (table === 'issues') setIssues(data);
+          else if (table === 'staff') setStaff(data);
+          else if (table === 'project_sub_activities') setSubActivities(data);
+          else if (table === 'project_reflections') setReflections(data);
+          else if (table === 'project_documents') setDocuments(data);
+        });
+      };
+
+      const handlePayload = (payload: any) => {
+        if (!payload || !payload.table) return;
+        const table = payload.table;
+        
+        // Debounce per table to consolidate batch uploads and rapid keyboard edits
+        if (timeouts[table]) {
+          clearTimeout(timeouts[table]);
+        }
+        
+        timeouts[table] = setTimeout(() => {
+          syncTable(table);
+          delete timeouts[table];
+        }, 1200);
+      };
+
       const channel = supabase
         .channel('realtime_sync')
-        .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-          SupabaseSync.fetchAllData().then((data) => {
-            if (data) {
-              setProjects(data.projects);
-              setIndicators(data.indicators);
-              setOutcomes(data.outcomes);
-              setActivities(data.activities);
-              setBeneficiaries(data.beneficiaries);
-              setIssues(data.issues);
-              setStaff(data.staff);
-              setSubActivities(data.subActivities);
-              setReflections(data.reflections);
-              setDocuments(data.documents);
-            }
-          });
-        })
+        .on('postgres_changes', { event: '*', schema: 'public' }, handlePayload)
         .subscribe();
 
       return () => {
         supabase.removeChannel(channel);
+        Object.values(timeouts).forEach(clearTimeout);
       };
     }
   }, [dbIsConfigured]);

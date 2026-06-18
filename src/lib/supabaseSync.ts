@@ -530,6 +530,96 @@ export const SupabaseSync = {
     }
   },
 
+  async fetchSingleTable(table: string): Promise<any[] | null> {
+    if (!isSupabaseConfigured || !supabase) {
+      return null;
+    }
+    try {
+      if (!isSchemaFetched) {
+        await this.fetchSchemaInfo().catch(() => {});
+      }
+      
+      const res = await supabase.from(table).select('*');
+      if (res.error) {
+        return null;
+      }
+      
+      if (res.data && res.data.length > 0) {
+        schemaColumns[table] = Object.keys(res.data[0]);
+      }
+      
+      const rows = res.data || [];
+      
+      if (table === 'projects') {
+        return rows.map(row => {
+          const item = fromDbRow<Project>(row);
+          if (item.id && item.name) {
+            projectIdToName.set(item.id, item.name);
+            projectIdToName.set(textToUuid(item.id), item.name);
+          }
+          return item;
+        });
+      }
+      if (table === 'project_indicators') {
+        return rows.map(row => fromDbRow<Indicator>(row));
+      }
+      if (table === 'project_outcomes') {
+        return rows.map(row => fromDbRow<Outcome>(row));
+      }
+      if (table === 'project_activities') {
+        return rows.map(row => {
+          const act = fromDbRow<Activity>(row);
+          if (typeof act.notes === 'string') {
+            try { act.notes = JSON.parse(act.notes); } catch { act.notes = []; }
+          }
+          if (typeof act.files === 'string') {
+            try { act.files = JSON.parse(act.files); } catch { act.files = []; }
+          }
+          return act;
+        });
+      }
+      if (table === 'beneficiaries') {
+        return rows.map(row => {
+          const ben = fromDbRow<Beneficiary>(row);
+          if (typeof ben.registrations === 'string') {
+            try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
+          }
+          return ben;
+        });
+      }
+      if (table === 'issues') {
+        return rows.map(row => {
+          const issue = fromDbRow<Issue>(row);
+          if (typeof issue.updates === 'string') {
+            try { issue.updates = JSON.parse(issue.updates); } catch { issue.updates = []; }
+          }
+          return issue;
+        });
+      }
+      if (table === 'staff') {
+        return rows.map(row => {
+          const s = fromDbRow<Staff>(row);
+          if (!s.status) s.status = 'active';
+          return s;
+        });
+      }
+      if (table === 'project_sub_activities') {
+        return rows.map(row => fromDbRow<SubActivity>(row));
+      }
+      if (table === 'project_reflections') {
+        return rows.map(row => fromDbRow<ProjectReflection>(row));
+      }
+      if (table === 'project_documents') {
+        return rows.map(row => fromDbRow<ProjectDocument>(row));
+      }
+      
+      return rows.map(row => fromDbRow<any>(row));
+    } catch (err) {
+      console.error(`Error fetching single table ${table}:`, err);
+      return null;
+    }
+  },
+
   // Save/Upsert handlers using self-healing safeUpsert to protect against schema discrepancies
   async saveProject(proj: Project): Promise<boolean> {
     if (proj.id && proj.name) {
