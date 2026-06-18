@@ -2487,7 +2487,7 @@ CREATE TABLE IF NOT EXISTS project_activities (
 -- 5. Tabel Beneficiaries (Penerima Manfaat)
 CREATE TABLE IF NOT EXISTS beneficiaries (
     id UUID PRIMARY KEY,
-    name TEXT NOT NULL,
+    full_name TEXT NOT NULL,
     phone TEXT,
     gender TEXT,
     birth_year INTEGER,
@@ -2661,7 +2661,7 @@ ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 
                         <span className="text-amber-400">-- 5. Tabel Beneficiaries</span>{"\n"}
                         <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> beneficiaries ({"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;full_name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;phone TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;gender TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;birth_year INTEGER,{"\n"}

@@ -18,7 +18,7 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files', 'project_name'
   ],
   beneficiaries: [
-    'id', 'name', 'phone', 'gender', 'birth_year', 'location', 'occupation', 'email', 'note', 'registrations'
+    'id', 'name', 'full_name', 'phone', 'gender', 'birth_year', 'location', 'occupation', 'email', 'note', 'registrations'
   ],
   issues: [
     'id', 'title', 'description', 'category', 'project_id', 'activity_id', 'severity', 'status', 
@@ -286,6 +286,12 @@ function fromDbRow<T>(row: any): T {
     result.title = result.outcomeText;
   }
 
+  if (row.full_name !== undefined) {
+    result.name = row.full_name;
+  } else if (result.fullName !== undefined) {
+    result.name = result.fullName;
+  }
+
   return result as T;
 }
 
@@ -417,6 +423,7 @@ function mapBeneficiaryToDb(ben: Beneficiary) {
   const row = toDbRow(ben);
   row.birth_year = ben.birthyear ? Number(ben.birthyear) : null;
   row.registrations = ben.registrations || [];
+  row.full_name = ben.name; // Map local name field to database's full_name column
   return cleanRowAndPrepare('beneficiaries', row);
 }
 
@@ -703,6 +710,9 @@ export const SupabaseSync = {
           if (typeof ben.registrations === 'string') {
             try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
           }
+          if (!ben.registrations || !Array.isArray(ben.registrations)) {
+            ben.registrations = [];
+          }
           return ben;
         }),
         issues: resIssues.data === undefined ? undefined : (resIssues.data || []).map(row => {
@@ -786,6 +796,9 @@ export const SupabaseSync = {
           const ben = fromDbRow<Beneficiary>(row);
           if (typeof ben.registrations === 'string') {
             try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
+          }
+          if (!ben.registrations || !Array.isArray(ben.registrations)) {
+            ben.registrations = [];
           }
           return ben;
         });
