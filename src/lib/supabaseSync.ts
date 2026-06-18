@@ -15,7 +15,7 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'id', 'project_id', 'title', 'outcome_text', 'project_name'
   ],
   project_activities: [
-    'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files'
+    'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files', 'project_name'
   ],
   beneficiaries: [
     'id', 'name', 'phone', 'gender', 'birth_year', 'location', 'occupation', 'email', 'note', 'registrations'
@@ -405,6 +405,11 @@ function mapActivityToDb(act: Activity) {
   // Ensure notes/files are safely stored as JSON
   row.notes = act.notes || [];
   row.files = act.files || [];
+  
+  // Attach project_name to fulfill any potential database's not-null constraint
+  const cleanId = textToUuid(act.projectId);
+  row.project_name = projectIdToName.get(act.projectId) || projectIdToName.get(cleanId) || 'DFW Project';
+  
   return cleanRowAndPrepare('project_activities', row);
 }
 
