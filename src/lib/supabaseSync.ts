@@ -208,16 +208,29 @@ async function safeUpsert(
 
   if (error) {
     const isConstraintViolation = error.code === '23514';
-    if (isConstraintViolation && error.message && error.message.includes('issues_severity_check')) {
-      console.warn(`[Self-Healing] Detected violation on constraint "issues_severity_check" when saving to table "${tableName}". Setting "severity" to null and retrying to ensure data is saved successfully.`);
-      const healedMappingFn = (v: any) => {
-        const payload = mappingFn(v);
-        if (payload) {
-          payload.severity = null;
-        }
-        return payload;
-      };
-      return safeUpsert(tableName, item, healedMappingFn, retryCount + 1);
+    if (isConstraintViolation && error.message) {
+      if (error.message.includes('issues_severity_check')) {
+        console.warn(`[Self-Healing] Detected violation on constraint "issues_severity_check" when saving to table "${tableName}". Setting "severity" to null and retrying to ensure data is saved successfully.`);
+        const healedMappingFn = (v: any) => {
+          const payload = mappingFn(v);
+          if (payload) {
+            payload.severity = null;
+          }
+          return payload;
+        };
+        return safeUpsert(tableName, item, healedMappingFn, retryCount + 1);
+      }
+      if (error.message.includes('issues_status_check')) {
+        console.warn(`[Self-Healing] Detected violation on constraint "issues_status_check" when saving to table "${tableName}". Setting "status" to null and retrying to ensure data is saved successfully.`);
+        const healedMappingFn = (v: any) => {
+          const payload = mappingFn(v);
+          if (payload) {
+            payload.status = null;
+          }
+          return payload;
+        };
+        return safeUpsert(tableName, item, healedMappingFn, retryCount + 1);
+      }
     }
 
     const isPgrst204 = error.code === 'PGRST204';

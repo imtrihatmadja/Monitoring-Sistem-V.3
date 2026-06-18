@@ -2584,7 +2584,8 @@ ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS date_occurred TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS source_type TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS updates JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;`;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                             navigator.clipboard.writeText(sqlText);
                             setSqlCopied(true);
                             setTimeout(() => setSqlCopied(false), 2500);
@@ -2763,7 +2764,8 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;`;
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> date_occurred TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> source_type TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>;{"\n"}
-                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_severity_check;
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_severity_check;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_status_check;
                       </div>
                     </div>
                   </div>
