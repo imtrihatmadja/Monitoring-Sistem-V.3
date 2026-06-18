@@ -2577,9 +2577,14 @@ ALTER TABLE project_reflections DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_documents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;
 
--- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM project_name
+-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT
 ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
-ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';`;
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS date_occurred TEXT;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS source_type TEXT;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS updates JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;`;
                             navigator.clipboard.writeText(sqlText);
                             setSqlCopied(true);
                             setTimeout(() => setSqlCopied(false), 2500);
@@ -2751,9 +2756,14 @@ ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 
                         <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}{"\n"}
 
-                        <span className="text-amber-400">-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM project_name</span>{"\n"}
+                        <span className="text-amber-400">-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT</span>{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
-                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> full_name TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> date_occurred TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> source_type TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb'</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_severity_check;
                       </div>
                     </div>
                   </div>

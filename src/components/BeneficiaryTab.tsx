@@ -832,7 +832,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
               <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-100 min-h-[310px] flex flex-col justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">🍩 Proporsi Pekerjaan Utama</span>
                 <div className="flex-1 min-h-[220px] relative">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={220}>
                     <PieChart>
                       <Pie
                         data={occupationChartData}
@@ -864,7 +864,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
               <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-100 min-h-[310px] flex flex-col justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">📊 Jumlah Orang per Sektor</span>
                 <div className="flex-1 min-h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={occupationChartData} layout="vertical" margin={{ left: -10, right: 10, top: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                       <XAxis type="number" stroke="#94a3b8" fontSize={9} />
@@ -880,7 +880,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
               <div className="bg-slate-50/40 p-4 rounded-xl border border-slate-100 min-h-[310px] flex flex-col justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">🧑‍🤝‍🧑 Komposisi Gender Sektor Kerja</span>
                 <div className="flex-1 min-h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={occupationChartData} margin={{ top: 10, right: 10, left: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} />
