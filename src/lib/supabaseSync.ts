@@ -215,27 +215,18 @@ function cleanRowAndPrepare(tableName: string, row: any): any {
     }
   }
   
-  // 2. Perform dynamic UUID formatting for columns that expect UUID in Supabase
-  const uuids = schemaUuidColumns[tableName];
-  if (uuids && uuids.size > 0) {
-    for (const col of Object.keys(finalRow)) {
-      if (uuids.has(col)) {
-        const val = finalRow[col];
-        if (typeof val === 'string' && val.trim() !== '') {
-          finalRow[col] = textToUuid(val);
-        }
-      }
-    }
-  } else {
-    // Fallback: Default common keys that are usually primary/foreign keys typed as UUID
-    const commonUuidFields = ['id', 'project_id', 'activity_id', 'parent_activity_id'];
-    for (const field of commonUuidFields) {
-      if (finalRow[field] !== undefined && typeof finalRow[field] === 'string' && finalRow[field].trim() !== '') {
-        const val = finalRow[field];
-        const isStandardTextId = /^(p-|ind-|out-|act-|sub-|ref-|ben-|st-)/i.test(val);
-        if (isStandardTextId) {
-          finalRow[field] = textToUuid(val);
-        }
+  // 2. Perform robust UUID formatting for columns that expect UUID in Supabase
+  // Merging dynamic schema UUID keys with our static fallbacks to guarantee 100% type safety
+  const uuids = new Set<string>([
+    ...(schemaUuidColumns[tableName] ? Array.from(schemaUuidColumns[tableName]) : []),
+    ...(fallbackSchemaUuidColumns[tableName] || [])
+  ]);
+  
+  for (const col of Object.keys(finalRow)) {
+    if (uuids.has(col) || col === 'id' || col.endsWith('_id')) {
+      const val = finalRow[col];
+      if (typeof val === 'string' && val.trim() !== '') {
+        finalRow[col] = textToUuid(val);
       }
     }
   }
@@ -378,13 +369,15 @@ export const SupabaseSync = {
           if (tableDef && tableDef.properties) {
             colMap[tableName] = Object.keys(tableDef.properties);
             
-            const uuids = new Set<string>();
+            // Start with fallback UUID definitions for safety
+            const uuids = new Set<string>(fallbackSchemaUuidColumns[tableName] || []);
             for (const propName of Object.keys(tableDef.properties)) {
               const prop = tableDef.properties[propName];
               if (prop && (
                 prop.format === 'uuid' || 
                 prop.type === 'uuid' || 
-                (prop.description && prop.description.toLowerCase().includes('uuid'))
+                (prop.description && prop.description.toLowerCase().includes('uuid')) ||
+                propName === 'id' || propName.endsWith('_id')
               )) {
                 uuids.add(propName);
               }
@@ -793,5 +786,11 @@ export const SupabaseSync = {
       console.warn(`Could not delete document: [${e.code || '-'}] ${e.message || e}`);
       return false;
     }
+  },
+
+  cacheProjectName(id: string, name: string): void {
+    if (!id || !name) return;
+    projectIdToName.set(id, name);
+    projectIdToName.set(textToUuid(id), name);
   }
 };

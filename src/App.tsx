@@ -196,6 +196,15 @@ export default function App() {
     }
   }, []);
 
+  // Daftarkan pemetaan nama proyek yang mudah dibaca di dalam SupabaseSync saat daftar proyek berubah
+  useEffect(() => {
+    projects.forEach((p) => {
+      if (p.id && p.name) {
+        SupabaseSync.cacheProjectName(p.id, p.name);
+      }
+    });
+  }, [projects]);
+
   // Setup Subscription Real-time untuk sinkronisasi antarterminal pengguna secara instan (Dioptimalkan dengan debounce dan selective-table fetching)
   useEffect(() => {
     if (dbIsConfigured && supabase) {
