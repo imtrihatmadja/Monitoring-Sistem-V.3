@@ -61,6 +61,33 @@ for (const [table, cols] of Object.entries(fallbackSchemaUuidColumns)) {
   schemaUuidColumns[table] = new Set(cols);
 }
 
+// Persistent string ID to UUID lookup table mapping the generated UUIDs back to client-friendly IDs
+let uuidToOriginalMap: Record<string, string> = {};
+
+// Load mapping from local storage to handle app refreshes gracefully
+try {
+  const stored = localStorage.getItem('dfw_uuid_mappings');
+  if (stored) {
+    uuidToOriginalMap = JSON.parse(stored);
+  }
+} catch (e) {
+  // Safe fallback
+}
+
+// Register helper to store bidirectionally
+function registerIdMapping(uuid: string, original: string) {
+  const u = uuid.trim().toLowerCase();
+  const o = original.trim();
+  if (u && o && u !== o.toLowerCase()) {
+    uuidToOriginalMap[u] = o;
+    try {
+      localStorage.setItem('dfw_uuid_mappings', JSON.stringify(uuidToOriginalMap));
+    } catch (e) {
+      // Safe fallback
+    }
+  }
+}
+
 // Deterministic string-to-UUID converter to satisfy strict PostgreSQL uuid data types
 function textToUuid(str: string): string {
   if (!str) return str;
@@ -91,6 +118,7 @@ function textToUuid(str: string): string {
     }
     // Verify it is now matching UUID regex perfectly
     if (uuidRegex.test(clean)) {
+      registerIdMapping(clean, str);
       return clean;
     }
   }
@@ -119,7 +147,46 @@ function textToUuid(str: string): string {
   const part4 = '8' + absHash2.substring(0, 3); // Starts with 8-11 pattern (uuid-conformant variant)
   const part5 = absHash2.substring(3).padEnd(12, 'f');
 
-  return `${part1}-${part2}-${part3}-${part4}-${part5}`.substring(0, 36);
+  const generatedUuid = `${part1}-${part2}-${part3}-${part4}-${part5}`.substring(0, 36);
+  registerIdMapping(generatedUuid, str);
+  return generatedUuid;
+}
+
+// Pre-seed mapping cache from any existing localStorage items to guarantee seamless offline-to-online translations
+try {
+  const seedLocalData = (key: string) => {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const items = JSON.parse(raw);
+      if (Array.isArray(items)) {
+        items.forEach((item: any) => {
+          if (item) {
+            if (item.id) {
+              textToUuid(item.id); // This automatically registers the mapping for item.id!
+            }
+            if (item.projectId) {
+              textToUuid(item.projectId); // This automatically registers the mapping for projectIds
+            }
+            if (item.activityId) {
+              textToUuid(item.activityId);
+            }
+            if (item.parentActivityId) {
+              textToUuid(item.parentActivityId);
+            }
+          }
+        });
+      }
+    }
+  };
+  seedLocalData('dfw_projects');
+  seedLocalData('dfw_indicators');
+  seedLocalData('dfw_outcomes');
+  seedLocalData('dfw_activities');
+  seedLocalData('dfw_beneficiaries');
+  seedLocalData('dfw_issues');
+  seedLocalData('dfw_reflections');
+} catch (e) {
+  // Silent fallback
 }
 
 // Recursive self-healing wrapper to rescue operations failing on schema discrepancies (e.g. missing columns)
@@ -194,7 +261,16 @@ function fromDbRow<T>(row: any): T {
   for (const key of Object.keys(row)) {
     // Map snake_case to camelCase
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-    result[camelKey] = row[key];
+    
+    let val = row[key];
+    if (typeof val === 'string') {
+      const lower = val.trim().toLowerCase();
+      if (uuidToOriginalMap[lower]) {
+        val = uuidToOriginalMap[lower];
+      }
+    }
+    
+    result[camelKey] = val;
   }
   
   // Specific mappings for table differences (e.g. indicator_name -> title, outcome_text -> title)
