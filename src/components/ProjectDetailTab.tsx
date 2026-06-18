@@ -159,6 +159,26 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
           </div>
         )}
 
+        {/* Outcomes listed directly below Goal */}
+        {outcomes && outcomes.length > 0 && (
+          <div className="bg-amber-50/40 p-4 rounded-xl border border-amber-150/30 text-xs text-slate-700 leading-relaxed space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="font-extrabold text-[10px] text-amber-600 uppercase tracking-widest block">Project Outcomes (Hasil yang Diharapkan)</span>
+            </div>
+            <ul className="space-y-1.5 pl-1">
+              {outcomes.map((o, idx) => (
+                <li key={o.id} className="flex items-start gap-2 text-xs font-semibold">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-850 font-bold text-[9px] shrink-0 mt-0.5 font-mono">
+                    {idx + 1}
+                  </span>
+                  <span className="pt-0.5 text-slate-750 leading-relaxed">{o.title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Budget overview panel */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
           <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
