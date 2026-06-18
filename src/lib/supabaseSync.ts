@@ -9,10 +9,10 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'is_archived', 'archored_by', 'archived_at'
   ],
   project_indicators: [
-    'id', 'project_id', 'title', 'target', 'current', 'unit', 'last_updated', 'last_value', 'project_name'
+    'id', 'project_id', 'title', 'indicator_name', 'target', 'current', 'unit', 'last_updated', 'last_value', 'project_name'
   ],
   project_outcomes: [
-    'id', 'project_id', 'title', 'project_name'
+    'id', 'project_id', 'title', 'outcome_text', 'project_name'
   ],
   project_activities: [
     'id', 'project_id', 'title', 'desc', 'pic', 'status', 'start_date', 'due_date', 'progress', 'notes', 'files'
@@ -196,6 +196,20 @@ function fromDbRow<T>(row: any): T {
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
     result[camelKey] = row[key];
   }
+  
+  // Specific mappings for table differences (e.g. indicator_name -> title, outcome_text -> title)
+  if (row.indicator_name !== undefined) {
+    result.title = row.indicator_name;
+  } else if (result.indicatorName !== undefined) {
+    result.title = result.indicatorName;
+  }
+  
+  if (row.outcome_text !== undefined) {
+    result.title = row.outcome_text;
+  } else if (result.outcomeText !== undefined) {
+    result.title = result.outcomeText;
+  }
+
   return result as T;
 }
 
@@ -282,6 +296,10 @@ function mapIndicatorToDb(ind: Indicator) {
   row.current = Number(ind.current || 0);
   row.last_value = Number(ind.lastValue || 0);
   
+  // Cross-compatibility mappings for database column variations
+  row.title = ind.title;
+  row.indicator_name = ind.title;
+  
   // Attach project_name to fulfill the database's not-null constraint
   const cleanId = textToUuid(ind.projectId);
   row.project_name = projectIdToName.get(ind.projectId) || projectIdToName.get(cleanId) || 'DFW Project';
@@ -292,6 +310,10 @@ function mapIndicatorToDb(ind: Indicator) {
 function mapOutcomeToDb(out: Outcome) {
   const row = toDbRow(out);
   row.project_id = out.projectId;
+  
+  // Cross-compatibility mappings for database column variations
+  row.title = out.title;
+  row.outcome_text = out.title;
   
   // Attach project_name to fulfill the database's not-null constraint
   const cleanId = textToUuid(out.projectId);
@@ -400,15 +422,72 @@ export const SupabaseSync = {
     }
   },
 
-  async fetchAllData() {
+  async fetchAllData(options?: {
+    activeTab?: string;
+    projectId?: string;
+    page?: number;
+    limit?: number;
+  }) {
     if (!isSupabaseConfigured || !supabase) {
       return null;
     }
+
+    const { activeTab, projectId, page, limit } = options || {};
 
     try {
       // Ensure we fetch schema beforehand to align parsing
       if (!isSchemaFetched) {
         await this.fetchSchemaInfo().catch(() => {});
+      }
+
+      // Determine which tables are active based on active tab to conserve database egress loads
+      const tablesToFetch = new Set<string>();
+      if (!activeTab) {
+        const allTables = [
+          'projects', 'project_indicators', 'project_outcomes', 'project_activities',
+          'beneficiaries', 'issues', 'staff', 'project_sub_activities',
+          'project_reflections', 'project_documents'
+        ];
+        allTables.forEach(t => tablesToFetch.add(t));
+      } else {
+        // Core list of projects always fetched for parent referencing
+        tablesToFetch.add('projects');
+
+        if (activeTab === 'dashboard') {
+          tablesToFetch.add('project_indicators');
+          tablesToFetch.add('project_activities');
+          tablesToFetch.add('beneficiaries');
+          tablesToFetch.add('issues');
+        } else if (activeTab === 'projects' || activeTab === 'add_project' || activeTab === 'edit_project') {
+          tablesToFetch.add('project_indicators');
+          tablesToFetch.add('project_outcomes');
+        } else if (activeTab === 'project_detail') {
+          tablesToFetch.add('project_indicators');
+          tablesToFetch.add('project_outcomes');
+          tablesToFetch.add('project_activities');
+          tablesToFetch.add('project_sub_activities');
+          tablesToFetch.add('project_reflections');
+          tablesToFetch.add('project_documents');
+        } else if (activeTab === 'beneficiary') {
+          tablesToFetch.add('beneficiaries');
+        } else if (activeTab === 'issues') {
+          tablesToFetch.add('issues');
+        } else if (activeTab === 'staff') {
+          tablesToFetch.add('staff');
+          tablesToFetch.add('project_activities'); // Staff workload displays stats based on assigned activities
+        } else if (activeTab === 'documents') {
+          tablesToFetch.add('project_documents');
+        } else if (activeTab === 'archive') {
+          tablesToFetch.add('project_activities');
+        } else {
+          // Fallback to all tables for unrecognized tabs
+          const allTables = [
+            'projects', 'project_indicators', 'project_outcomes', 'project_activities',
+            'beneficiaries', 'issues', 'staff', 'project_sub_activities',
+            'project_reflections', 'project_documents'
+          ];
+          allTables.forEach(t => tablesToFetch.add(t));
+        }
       }
 
       // Helper to dynamically harvest existing columns from fetched data
@@ -420,8 +499,46 @@ export const SupabaseSync = {
       };
 
       const fetchGuarded = async (table: string) => {
+        // If the table is not needed for the current active tab view, skip fetching to save bandwidth/egress!
+        if (!tablesToFetch.has(table)) {
+          return { data: undefined };
+        }
+
         try {
-          const res = await supabase!.from(table).select('*');
+          let query = supabase!.from(table).select('*');
+
+          // Apply project filtering where appropriate to restrict downloading extraneous records
+          if (projectId) {
+            const uuidProjId = textToUuid(projectId);
+            if (table === 'projects') {
+              query = query.eq('id', uuidProjId);
+            } else {
+              const hasProjectIdCol = fallbackSchemaUuidColumns[table]?.includes('project_id') || 
+                                      (schemaColumns[table] && schemaColumns[table].includes('project_id'));
+              if (hasProjectIdCol) {
+                query = query.eq('project_id', uuidProjId);
+              }
+            }
+          }
+
+          // Apply limit-offset range-based pagination only to the primary list of the current tab
+          if (limit && page && page > 0) {
+            const isPrimaryTable = 
+              (activeTab === 'projects' && table === 'projects') ||
+              (activeTab === 'dashboard' && table === 'projects') ||
+              (activeTab === 'beneficiary' && table === 'beneficiaries') ||
+              (activeTab === 'issues' && table === 'issues') ||
+              (activeTab === 'staff' && table === 'staff') ||
+              (activeTab === 'documents' && table === 'project_documents');
+
+            if (isPrimaryTable) {
+              const fromIndex = (page - 1) * limit;
+              const toIndex = fromIndex + limit - 1;
+              query = query.range(fromIndex, toIndex);
+            }
+          }
+
+          const res = await query;
           if (res.error) {
             // Demote table errors (like missing 404 target tables) to quiet status handlers
             return { data: [], error: res.error };
@@ -467,7 +584,7 @@ export const SupabaseSync = {
       };
 
       return {
-        projects: (resProjects.data || []).map(row => {
+        projects: resProjects.data === undefined ? undefined : (resProjects.data || []).map(row => {
           const item = fromDbRow<Project>(row);
           if (item.id && item.name) {
             projectIdToName.set(item.id, item.name);
@@ -475,15 +592,15 @@ export const SupabaseSync = {
           }
           return item;
         }),
-        indicators: (resIndicators.data || []).map(row => {
+        indicators: resIndicators.data === undefined ? undefined : (resIndicators.data || []).map(row => {
           const item = fromDbRow<Indicator>(row);
           return item;
         }),
-        outcomes: (resOutcomes.data || []).map(row => {
+        outcomes: resOutcomes.data === undefined ? undefined : (resOutcomes.data || []).map(row => {
           const item = fromDbRow<Outcome>(row);
           return item;
         }),
-        activities: (resActivities.data || []).map(row => {
+        activities: resActivities.data === undefined ? undefined : (resActivities.data || []).map(row => {
           const act = fromDbRow<Activity>(row);
           // Parse JSON if returned as string
           if (typeof act.notes === 'string') {
@@ -494,28 +611,28 @@ export const SupabaseSync = {
           }
           return act;
         }),
-        beneficiaries: (resBeneficiaries.data || []).map(row => {
+        beneficiaries: resBeneficiaries.data === undefined ? undefined : (resBeneficiaries.data || []).map(row => {
           const ben = fromDbRow<Beneficiary>(row);
           if (typeof ben.registrations === 'string') {
             try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
           }
           return ben;
         }),
-        issues: (resIssues.data || []).map(row => {
+        issues: resIssues.data === undefined ? undefined : (resIssues.data || []).map(row => {
           const issue = fromDbRow<Issue>(row);
           if (typeof issue.updates === 'string') {
             try { issue.updates = JSON.parse(issue.updates); } catch { issue.updates = []; }
           }
           return issue;
         }),
-        staff: (resStaff.data || []).map(row => {
+        staff: resStaff.data === undefined ? undefined : (resStaff.data || []).map(row => {
           const s = fromDbRow<Staff>(row);
           if (!s.status) s.status = 'active';
           return s;
         }),
-        subActivities: (resSubActs?.data || []).map((row: any) => fromDbRow<SubActivity>(row)),
-        reflections: (resReflections.data || []).map(row => fromDbRow<ProjectReflection>(row)),
-        documents: (resDocs?.data || []).map((row: any) => fromDbRow<ProjectDocument>(row))
+        subActivities: resSubActs.data === undefined ? undefined : (resSubActs?.data || []).map((row: any) => fromDbRow<SubActivity>(row)),
+        reflections: resReflections.data === undefined ? undefined : (resReflections.data || []).map(row => fromDbRow<ProjectReflection>(row)),
+        documents: resDocs.data === undefined ? undefined : (resDocs?.data || []).map((row: any) => fromDbRow<ProjectDocument>(row))
       };
     } catch (error) {
       console.error('Failed to load initial data from Supabase:', error);

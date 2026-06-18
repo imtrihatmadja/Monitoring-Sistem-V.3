@@ -111,9 +111,87 @@ export default function App() {
   const [tableStatuses, setTableStatuses] = useState<Record<string, 'loading' | 'ok' | 'missing'>>({});
   const [isCheckingTables, setIsCheckingTables] = useState(false);
 
+  // Pagination states for conserving database egress load per tab
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
   // Sync validation status toast
   const [syncToast, setSyncToast] = useState<'success' | 'info' | 'error' | ''>('');
   const [syncToastMsg, setSyncToastMsg] = useState<string>('');
+
+  // Reset page when switching tabs or selecting a new project to keep the interface intuitive
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, selectedProjectId]);
+
+  // Optimized background silent data loader to fetch specific tab database partitions
+  const silentSyncFromSupabase = async (opts?: { tab?: string; projId?: string; pg?: number; lim?: number }) => {
+    if (!dbIsConfigured) return;
+    try {
+      const targetTab = opts?.tab ?? activeTab;
+      const targetProj = opts?.projId ?? selectedProjectId;
+      const targetPg = opts?.pg ?? currentPage;
+      const targetLim = opts?.lim ?? itemsPerPage;
+
+      const data = await SupabaseSync.fetchAllData({
+        activeTab: targetTab,
+        projectId: targetProj,
+        page: targetPg,
+        limit: targetLim
+      });
+      if (data) {
+        if (data.projects !== undefined) {
+          setProjects(data.projects);
+          localStorage.setItem('dfw_projects', JSON.stringify(data.projects));
+        }
+        if (data.indicators !== undefined) {
+          setIndicators(data.indicators);
+          localStorage.setItem('dfw_indicators', JSON.stringify(data.indicators));
+        }
+        if (data.outcomes !== undefined) {
+          setOutcomes(data.outcomes);
+          localStorage.setItem('dfw_outcomes', JSON.stringify(data.outcomes));
+        }
+        if (data.activities !== undefined) {
+          setActivities(data.activities);
+          localStorage.setItem('dfw_activities', JSON.stringify(data.activities));
+        }
+        if (data.beneficiaries !== undefined) {
+          setBeneficiaries(data.beneficiaries);
+          localStorage.setItem('dfw_beneficiaries', JSON.stringify(data.beneficiaries));
+        }
+        if (data.issues !== undefined) {
+          setIssues(data.issues);
+          localStorage.setItem('dfw_issues', JSON.stringify(data.issues));
+        }
+        if (data.staff !== undefined) {
+          setStaff(data.staff);
+          localStorage.setItem('dfw_staff', JSON.stringify(data.staff));
+        }
+        if (data.subActivities !== undefined) {
+          setSubActivities(data.subActivities);
+          localStorage.setItem('dfw_sub_activities', JSON.stringify(data.subActivities));
+        }
+        if (data.reflections !== undefined) {
+          setReflections(data.reflections);
+          localStorage.setItem('dfw_reflections', JSON.stringify(data.reflections));
+        }
+        if (data.documents !== undefined) {
+          setDocuments(data.documents);
+          localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+        }
+      }
+    } catch (e) {
+      console.warn('Quiet tab transition sync failed:', e);
+    }
+  };
+
+  // Re-fetch active tab records automatically when paging or context switches
+  useEffect(() => {
+    if (dbIsConfigured) {
+      silentSyncFromSupabase();
+    }
+  }, [activeTab, selectedProjectId, currentPage, itemsPerPage, dbIsConfigured]);
 
   // Initialize data stores
   useEffect(() => {
@@ -262,7 +340,9 @@ export default function App() {
     
     setIsCheckingTables(true);
     try {
-      const client = createClient(targetUrl, targetKey, { auth: { persistSession: false } });
+      const client = (targetUrl === dbUrl && targetKey === dbKey && supabase)
+        ? supabase
+        : createClient(targetUrl, targetKey, { auth: { persistSession: false } });
       const tablesToCheck = [
         'projects',
         'project_indicators',
@@ -501,30 +581,53 @@ export default function App() {
     try {
       setSyncToast('info');
       setSyncToastMsg('Mengsinkronisasi data dengan Supabase Cloud...');
-      const data = await SupabaseSync.fetchAllData();
+      const data = await SupabaseSync.fetchAllData({
+        activeTab,
+        projectId: selectedProjectId,
+        page: currentPage,
+        limit: itemsPerPage
+      });
       if (data) {
-        setProjects(data.projects);
-        setIndicators(data.indicators);
-        setOutcomes(data.outcomes);
-        setActivities(data.activities);
-        setBeneficiaries(data.beneficiaries);
-        setIssues(data.issues);
-        setStaff(data.staff);
-        setSubActivities(data.subActivities);
-        setReflections(data.reflections);
-        setDocuments(data.documents);
-        
-        // Write to local storage for caching/offline fallback
-        localStorage.setItem('dfw_projects', JSON.stringify(data.projects));
-        localStorage.setItem('dfw_indicators', JSON.stringify(data.indicators));
-        localStorage.setItem('dfw_outcomes', JSON.stringify(data.outcomes));
-        localStorage.setItem('dfw_activities', JSON.stringify(data.activities));
-        localStorage.setItem('dfw_beneficiaries', JSON.stringify(data.beneficiaries));
-        localStorage.setItem('dfw_issues', JSON.stringify(data.issues));
-        localStorage.setItem('dfw_staff', JSON.stringify(data.staff));
-        localStorage.setItem('dfw_sub_activities', JSON.stringify(data.subActivities));
-        localStorage.setItem('dfw_reflections', JSON.stringify(data.reflections));
-        localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+        if (data.projects !== undefined) {
+          setProjects(data.projects);
+          localStorage.setItem('dfw_projects', JSON.stringify(data.projects));
+        }
+        if (data.indicators !== undefined) {
+          setIndicators(data.indicators);
+          localStorage.setItem('dfw_indicators', JSON.stringify(data.indicators));
+        }
+        if (data.outcomes !== undefined) {
+          setOutcomes(data.outcomes);
+          localStorage.setItem('dfw_outcomes', JSON.stringify(data.outcomes));
+        }
+        if (data.activities !== undefined) {
+          setActivities(data.activities);
+          localStorage.setItem('dfw_activities', JSON.stringify(data.activities));
+        }
+        if (data.beneficiaries !== undefined) {
+          setBeneficiaries(data.beneficiaries);
+          localStorage.setItem('dfw_beneficiaries', JSON.stringify(data.beneficiaries));
+        }
+        if (data.issues !== undefined) {
+          setIssues(data.issues);
+          localStorage.setItem('dfw_issues', JSON.stringify(data.issues));
+        }
+        if (data.staff !== undefined) {
+          setStaff(data.staff);
+          localStorage.setItem('dfw_staff', JSON.stringify(data.staff));
+        }
+        if (data.subActivities !== undefined) {
+          setSubActivities(data.subActivities);
+          localStorage.setItem('dfw_sub_activities', JSON.stringify(data.subActivities));
+        }
+        if (data.reflections !== undefined) {
+          setReflections(data.reflections);
+          localStorage.setItem('dfw_reflections', JSON.stringify(data.reflections));
+        }
+        if (data.documents !== undefined) {
+          setDocuments(data.documents);
+          localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+        }
 
         setSyncToast('success');
         setSyncToastMsg('Sinkronisasi data dari Supabase berhasil!');
@@ -1998,6 +2101,60 @@ export default function App() {
             />
           )}
 
+          {/* Pagination and egress stats bar */}
+          {['projects', 'beneficiary', 'issues', 'staff', 'documents'].includes(activeTab) && (
+            <div id="dfw-pagination-container" className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs text-slate-500">
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Optimasi Egress DB: <strong className="text-slate-700">Aktif (Hanya mengunduh data per tab/halaman)</strong></span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  id="btn-prev-page"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer shadow-xs inline-flex items-center gap-1"
+                >
+                  &larr; Sebelumnya
+                </button>
+                <span id="page-num-display" className="font-semibold text-slate-700 font-mono">Halaman {currentPage}</span>
+                <button
+                  type="button"
+                  id="btn-next-page"
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={
+                    activeTab === 'projects' ? (projects?.length || 0) < itemsPerPage :
+                    activeTab === 'beneficiary' ? (beneficiaries?.length || 0) < itemsPerPage :
+                    activeTab === 'issues' ? (issues?.length || 0) < itemsPerPage :
+                    activeTab === 'staff' ? (staff?.length || 0) < itemsPerPage :
+                    activeTab === 'documents' ? (documents?.length || 0) < itemsPerPage : false
+                  }
+                  className="px-3 py-1.5 font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all cursor-pointer shadow-xs inline-flex items-center gap-1"
+                >
+                  Selanjutnya &rarr;
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400">Baris:</span>
+                <select
+                  id="select-items-limit"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg py-1 px-2 text-xs text-slate-700 font-semibold focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value={5}>5 baris</option>
+                  <option value={10}>10 baris</option>
+                  <option value={20}>20 baris</option>
+                  <option value={50}>50 baris</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'supabase' && (
             <div className="bg-white rounded-2xl border border-slate-100 p-8 shadow-xs max-w-2xl mx-auto space-y-6">
               <div>
@@ -2086,7 +2243,9 @@ export default function App() {
                       const keyStr = dbKey.trim();
                       
                       // Safely test with temporary client instance
-                      const tempClient = createClient(urlStr, keyStr, { auth: { persistSession: false } });
+                      const tempClient = (urlStr === dbUrl.trim() && keyStr === dbKey.trim() && supabase)
+                        ? supabase
+                        : createClient(urlStr, keyStr, { auth: { persistSession: false } });
                       const { error } = await tempClient.from('projects').select('id').limit(1);
                       if (error) {
                         throw new Error(`Tes koneksi ke database berhasil, namun gagal mengambil data tabel: ${error.message}. Harap pastikan tabel "projects" beserta skema tabel DFW Indonesia telah dibuat di Supabase Anda.`);
@@ -2416,7 +2575,11 @@ ALTER TABLE issues DISABLE ROW LEVEL SECURITY;
 ALTER TABLE staff DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_reflections DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_documents DISABLE ROW LEVEL SECURITY;
-ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;`;
+ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;
+
+-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM project_name
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';`;
                             navigator.clipboard.writeText(sqlText);
                             setSqlCopied(true);
                             setTimeout(() => setSqlCopied(false), 2500);
@@ -2586,7 +2749,11 @@ ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;`;
                         <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}
-                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}{"\n"}
+
+                        <span className="text-amber-400">-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM project_name</span>{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;
                       </div>
                     </div>
                   </div>
