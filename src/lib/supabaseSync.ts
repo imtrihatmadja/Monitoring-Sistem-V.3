@@ -690,6 +690,12 @@ export const SupabaseSync = {
           if (typeof act.files === 'string') {
             try { act.files = JSON.parse(act.files); } catch { act.files = []; }
           }
+          if (!act.notes || !Array.isArray(act.notes)) {
+            act.notes = [];
+          }
+          if (!act.files || !Array.isArray(act.files)) {
+            act.files = [];
+          }
           return act;
         }),
         beneficiaries: resBeneficiaries.data === undefined ? undefined : (resBeneficiaries.data || []).map(row => {
@@ -765,6 +771,12 @@ export const SupabaseSync = {
           }
           if (typeof act.files === 'string') {
             try { act.files = JSON.parse(act.files); } catch { act.files = []; }
+          }
+          if (!act.notes || !Array.isArray(act.notes)) {
+            act.notes = [];
+          }
+          if (!act.files || !Array.isArray(act.files)) {
+            act.files = [];
           }
           return act;
         });

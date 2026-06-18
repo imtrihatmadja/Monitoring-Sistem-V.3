@@ -50,12 +50,12 @@ interface ProjectDetailTabProps {
 
 export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
   project,
-  activities,
-  indicators,
-  outcomes,
-  reflections,
-  staffList,
-  documents,
+  activities = [],
+  indicators = [],
+  outcomes = [],
+  reflections = [],
+  staffList = [],
+  documents = [],
   onUpdateDocuments,
   onBackToDashboard,
   onEditProjectClick,
@@ -77,12 +77,6 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
   const [inlineIsUploading, setInlineIsUploading] = useState(false);
   const [inlinePreviewDoc, setInlinePreviewDoc] = useState<ProjectDocument | null>(null);
 
-  const initIndValue = (id: string, current: number) => {
-    if (indValues[id] === undefined) {
-      setIndValues((prev) => ({ ...prev, [id]: current }));
-    }
-  };
-
   const handleIndValueChange = (id: string, val: number) => {
     setIndValues((prev) => ({ ...prev, [id]: val }));
   };
@@ -95,13 +89,14 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
     }
   };
 
-  const formatRupiah = (value: number) => {
+  const formatRupiah = (value: any) => {
+    const num = Number(value || 0);
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(num);
   };
 
   return (
@@ -294,7 +289,7 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
 
                     <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
                       <span>Jatuh Tempo: <strong className="text-slate-500">{act.dueDate || '—'}</strong></span>
-                      {act.notes.length > 0 && (
+                      {act.notes && Array.isArray(act.notes) && act.notes.length > 0 && (
                         <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold text-[9px]">
                           💬 {act.notes.length} Catatan
                         </span>
@@ -323,7 +318,6 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
               </div>
             ) : (
               indicators.map((ind) => {
-                initIndValue(ind.id, ind.current);
                 const currentVal = indValues[ind.id] !== undefined ? indValues[ind.id] : ind.current;
                 const progressPercent = ind.target > 0 ? Math.round((currentVal / ind.target) * 100) : 0;
 
