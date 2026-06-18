@@ -207,6 +207,19 @@ async function safeUpsert(
   const { error } = await supabase.from(tableName).upsert(dbPayload);
 
   if (error) {
+    const isConstraintViolation = error.code === '23514';
+    if (isConstraintViolation && error.message && error.message.includes('issues_severity_check')) {
+      console.warn(`[Self-Healing] Detected violation on constraint "issues_severity_check" when saving to table "${tableName}". Setting "severity" to null and retrying to ensure data is saved successfully.`);
+      const healedMappingFn = (v: any) => {
+        const payload = mappingFn(v);
+        if (payload) {
+          payload.severity = null;
+        }
+        return payload;
+      };
+      return safeUpsert(tableName, item, healedMappingFn, retryCount + 1);
+    }
+
     const isPgrst204 = error.code === 'PGRST204';
     const isColumnMissing = error.message && (
       error.message.includes("Could not find the '") || 
