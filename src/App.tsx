@@ -108,6 +108,8 @@ export default function App() {
   const [dbError, setDbError] = useState('');
   const [showSqlGuide, setShowSqlGuide] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
+  const [tableStatuses, setTableStatuses] = useState<Record<string, 'loading' | 'ok' | 'missing'>>({});
+  const [isCheckingTables, setIsCheckingTables] = useState(false);
 
   // Sync validation status toast
   const [syncToast, setSyncToast] = useState<'success' | 'info' | 'error' | ''>('');
@@ -240,6 +242,74 @@ export default function App() {
         supabase.removeChannel(channel);
         Object.values(timeouts).forEach(clearTimeout);
       };
+    }
+  }, [dbIsConfigured]);
+
+  // Check ketersediaan tabel di database Supabase Cloud
+  const checkSupabaseTables = async (customUrl?: string, customKey?: string) => {
+    const targetUrl = customUrl || dbUrl;
+    const targetKey = customKey || dbKey;
+    if (!targetUrl || !targetKey) return;
+    
+    setIsCheckingTables(true);
+    try {
+      const client = createClient(targetUrl, targetKey, { auth: { persistSession: false } });
+      const tablesToCheck = [
+        'projects',
+        'project_indicators',
+        'project_outcomes',
+        'project_activities',
+        'beneficiaries',
+        'issues',
+        'staff',
+        'project_reflections',
+        'project_documents',
+        'project_sub_activities'
+      ];
+      
+      const nextStatuses: Record<string, 'loading' | 'ok' | 'missing'> = {};
+      tablesToCheck.forEach(t => {
+        nextStatuses[t] = 'loading';
+      });
+      setTableStatuses(nextStatuses);
+      
+      const checks = tablesToCheck.map(async (table) => {
+        try {
+          const { error } = await client.from(table).select('id').limit(1);
+          if (error) {
+            const errorMsg = (error.message || '').toLowerCase();
+            if (
+              errorMsg.includes('does not exist') || 
+              errorMsg.includes('could not find') || 
+              error.code === 'PGRST116' ||
+              error.code === '42P01'
+            ) {
+              return { table, status: 'missing' as const };
+            }
+          }
+          return { table, status: 'ok' as const };
+        } catch (e) {
+          return { table, status: 'missing' as const };
+        }
+      });
+      
+      const results = await Promise.all(checks);
+      const finalStatuses: Record<string, 'ok' | 'missing'> = {};
+      results.forEach(res => {
+        finalStatuses[res.table] = res.status;
+      });
+      setTableStatuses(finalStatuses);
+    } catch (err) {
+      console.error('Failed checking Supabase tables:', err);
+    } finally {
+      setIsCheckingTables(false);
+    }
+  };
+
+  // Trigger table checkers upon connection configuring
+  useEffect(() => {
+    if (dbIsConfigured) {
+      checkSupabaseTables();
     }
   }, [dbIsConfigured]);
 
@@ -2017,6 +2087,7 @@ export default function App() {
                       reinitializeSupabase(urlStr, keyStr);
                       setDbIsConfigured(true);
                       await SupabaseSync.fetchSchemaInfo(urlStr, keyStr);
+                      await checkSupabaseTables(urlStr, keyStr);
                       setSyncToast('success');
                       setSyncToastMsg('Koneksi Supabase berhasil diproses dan disimpan secara permanen!');
                       setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 4000);
@@ -2051,6 +2122,67 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {dbIsConfigured && (
+                <div className="border-t border-slate-100 pt-5 mt-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      📊 Status Ketersediaan Tabel di Supabase
+                    </h3>
+                    <button
+                      onClick={() => checkSupabaseTables()}
+                      disabled={isCheckingTables}
+                      className="px-2 py-1 text-[10px] font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50 rounded-lg cursor-pointer transition-all flex items-center gap-1"
+                    >
+                      {isCheckingTables ? 'Memeriksa...' : 'Re-check Tabel'}
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    {Object.keys(tableStatuses).length === 0 ? (
+                      <div className="col-span-full py-4 text-center text-slate-400 font-medium">
+                        Sedang memuat status tabel, atau tekan "Re-check Tabel" untuk memulai pendeteksian ketersediaan skema.
+                      </div>
+                    ) : (
+                      Object.entries(tableStatuses).map(([tableName, status]) => {
+                        let statusColor = 'text-slate-400 bg-slate-50 border-slate-100';
+                        let labelText = 'Memeriksa...';
+                        
+                        if (status === 'ok') {
+                          statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-100';
+                          labelText = 'Terpasang (Ready)';
+                        } else if (status === 'missing') {
+                          statusColor = 'text-rose-700 bg-rose-50 border-rose-100 font-extrabold animate-pulse';
+                          labelText = 'Belum Ada (Missing)';
+                        }
+                        
+                        return (
+                          <div key={tableName} className="p-2 border border-slate-100 bg-slate-50/30 rounded-lg flex items-center justify-between gap-3">
+                            <span className="font-mono text-slate-700 font-semibold">{tableName}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] border font-bold ${statusColor}`}>
+                              {labelText}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  
+                  {Object.values(tableStatuses).some(s => s === 'missing') && (
+                    <div className="p-3.5 bg-rose-50/50 border border-rose-100 rounded-xl space-y-2">
+                      <p className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                        ⚠️ Beberapa tabel belum terpasang di database Supabase Anda!
+                      </p>
+                      <p className="text-[11px] text-rose-600 leading-relaxed font-semibold">
+                        Data input seperti "Tambah Aktivitas" (tabel <code className="bg-white px-1.5 py-0.5 border border-rose-150 rounded font-mono text-xs font-bold text-slate-800">project_activities</code>) tidak akan tersimpan di Supabase hingga tabel tersebut dibuat.
+                      </p>
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-semibold">
+                        Selesaikan dengan menyalin skema SQL di bagian paling bawah halaman ini, lalu tempelkan dan jalankan pada menu <strong className="text-slate-800">SQL Editor</strong> di dashboard Supabase milik Anda!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {dbIsConfigured && (
                 <div className="border-t border-slate-100 pt-5 mt-4 space-y-4">
