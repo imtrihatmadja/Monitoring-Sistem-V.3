@@ -178,7 +178,11 @@ export default function App() {
         }
         if (data.documents !== undefined) {
           setDocuments(data.documents);
-          localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+          if (!dbIsConfigured) {
+            localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+          } else {
+            localStorage.removeItem('dfw_documents');
+          }
         }
       }
     } catch (e) {
@@ -423,7 +427,12 @@ export default function App() {
 
   const updateDocumentsInStorage = (newList: ProjectDocument[]) => {
     setDocuments(newList);
-    localStorage.setItem('dfw_documents', JSON.stringify(newList));
+    if (!dbIsConfigured) {
+      localStorage.setItem('dfw_documents', JSON.stringify(newList));
+    } else {
+      // Clear document cache from localstorage if database is configured
+      localStorage.removeItem('dfw_documents');
+    }
     if (dbIsConfigured) {
       const deleted = documents.filter(d => !newList.some(item => item.id === d.id));
       deleted.forEach(d => handleSyncResult(SupabaseSync.deleteDocument(d.id), "Penghapusan dokumen"));
@@ -626,7 +635,11 @@ export default function App() {
         }
         if (data.documents !== undefined) {
           setDocuments(data.documents);
-          localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+          if (!dbIsConfigured) {
+            localStorage.setItem('dfw_documents', JSON.stringify(data.documents));
+          } else {
+            localStorage.removeItem('dfw_documents');
+          }
         }
 
         setSyncToast('success');
@@ -2102,7 +2115,7 @@ export default function App() {
           )}
 
           {/* Pagination and egress stats bar */}
-          {['projects', 'beneficiary', 'issues', 'staff', 'documents'].includes(activeTab) && (
+          {['projects', 'issues', 'staff', 'documents'].includes(activeTab) && (
             <div id="dfw-pagination-container" className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs text-slate-500">
               <div className="flex items-center gap-1.5 font-mono">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>

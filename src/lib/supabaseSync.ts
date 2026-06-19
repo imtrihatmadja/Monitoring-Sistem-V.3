@@ -640,7 +640,6 @@ export const SupabaseSync = {
             const isPrimaryTable = 
               (activeTab === 'projects' && table === 'projects') ||
               (activeTab === 'dashboard' && table === 'projects') ||
-              (activeTab === 'beneficiary' && table === 'beneficiaries') ||
               (activeTab === 'issues' && table === 'issues') ||
               (activeTab === 'staff' && table === 'staff') ||
               (activeTab === 'documents' && table === 'project_documents');

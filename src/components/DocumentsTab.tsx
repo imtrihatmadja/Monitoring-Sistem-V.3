@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProjectDocument, Project } from '../types';
 import {
   Search,
@@ -21,6 +21,8 @@ import {
   Layers,
   HardDrive
 } from 'lucide-react';
+import { initAuth, googleSignIn, logout } from '../lib/googleAuth';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 
 export const DOC_CATEGORIES = [
   { code: 'TOR', label: 'TOR / Proposal', icon: '📋' },
@@ -55,6 +57,56 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<ProjectDocument | null>(null);
+
+  // Google Drive Connection State
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+  const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setCurrentUser(user);
+        setAccessTokenState(token);
+      },
+      () => {
+        setCurrentUser(null);
+        setAccessTokenState(null);
+      }
+    );
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const handleConnectDrive = async () => {
+    setIsDriveConnecting(true);
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setCurrentUser(result.user);
+        setAccessTokenState(result.accessToken);
+      }
+    } catch (err: any) {
+      alert('Gagal menghubungkan Google Drive: ' + err.message);
+    } finally {
+      setIsDriveConnecting(false);
+    }
+  };
+
+  const handleDisconnectDrive = async () => {
+    if (window.confirm('Apakah Anda yakin ingin memutuskan hubungan dengan Google Drive?')) {
+      try {
+        await logout();
+        setCurrentUser(null);
+        setAccessTokenState(null);
+      } catch (err: any) {
+        alert('Gagal memutuskan Google Drive: ' + err.message);
+      }
+    }
+  };
 
   // Upload Form Fields
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -159,8 +211,8 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
     setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Perform multi-file saving imitation
-  const handleStartUpload = (e: React.FormEvent) => {
+  // Perform real Google Drive multi-file upload
+  const handleStartUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (stagedFiles.length === 0) {
       alert('Pilih berkas file terlebih dahulu.');
@@ -170,39 +222,59 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       alert('Pilih asosiasi proyek terlebih dahulu.');
       return;
     }
+    if (!accessToken) {
+      alert('Hubungkan akun Google Drive Anda terlebih dahulu sebelum mengunggah berkas.');
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(10);
 
-    setTimeout(() => {
-      setUploadProgress(60);
-      setTimeout(() => {
-        setUploadProgress(100);
+    try {
+      const newDocuments: ProjectDocument[] = [];
+      const totalFiles = stagedFiles.length;
 
-        const newDocuments: ProjectDocument[] = stagedFiles.map((file, idx) => {
-          const generatedDriveId = `drive-${Date.now()}-${idx}`;
-          return {
-            id: `doc-${Date.now()}-${idx}`,
-            projectName: uploadProject,
-            category: uploadCategory,
-            fileName: file.name,
-            mimeType: file.type || 'application/octet-stream',
-            fileSize: file.size,
-            driveFileId: generatedDriveId,
-            driveFolderId: 'folder-gdrive-dfw-prod',
-            webViewLink: `https://drive.google.com/file/d/${generatedDriveId}/view`,
-            description: uploadDesc.trim() || undefined,
-            createdAt: new Date().toISOString().split('T')[0],
-          };
-        });
+      for (let i = 0; i < totalFiles; i++) {
+        const file = stagedFiles[i];
+        
+        // Progress update based on files
+        setUploadProgress(Math.round(10 + (i / totalFiles) * 80));
 
-        onUpdateDocuments([...documents, ...newDocuments]);
-        setIsUploading(false);
-        setIsUploadOpen(false);
-        setStagedFiles([]);
-        setUploadDesc('');
-      }, 500);
-    }, 400);
+        // Upload the actual file to Google Drive
+        const uploadResult = await uploadFileToGoogleDrive(file, accessToken);
+        
+        const docItem: ProjectDocument = {
+          id: `doc-${Date.now()}-${i}`,
+          projectName: uploadProject,
+          category: uploadCategory,
+          fileName: file.name,
+          mimeType: uploadResult.mimeType || file.type || 'application/octet-stream',
+          fileSize: file.size,
+          driveFileId: uploadResult.id,
+          driveFolderId: 'gdrive-user-file-root',
+          webViewLink: uploadResult.webViewLink,
+          description: uploadDesc.trim() || undefined,
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+
+        newDocuments.push(docItem);
+      }
+
+      setUploadProgress(100);
+      
+      // Update the documents state, which will write the records to Supabase
+      onUpdateDocuments([...documents, ...newDocuments]);
+      
+      setIsUploading(false);
+      setIsUploadOpen(false);
+      setStagedFiles([]);
+      setUploadDesc('');
+    } catch (err: any) {
+      console.error('File Upload to Google Drive Failed:', err);
+      alert(`Terjadi kesalahan saat mengunggah file ke Google Drive: ${err.message || err}`);
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   // Open Edit Metadata modal
@@ -293,6 +365,50 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Google Drive Status Alert/Banner */}
+      {!accessToken ? (
+        <div className="bg-amber-50/75 border border-amber-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs" id="gdrive-not-connected-banner">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-amber-100/80 text-amber-800 rounded-lg shrink-0">
+              <HardDrive className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Google Drive Belum Terhubung</h4>
+              <p className="text-[11px] text-slate-600 max-w-xl leading-relaxed">
+                Hubungkan dengan Google Drive Anda untuk mulai mengunggah file laporan, TOR, dan foto kegiatan secara otomatis langsung ke penyimpanan awan Google Drive Anda.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleConnectDrive}
+            disabled={isDriveConnecting}
+            className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-extrabold text-xs py-2 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto h-9"
+          >
+            <CloudUpload className="w-4 h-4" /> {isDriveConnecting ? 'Menghubungkan...' : 'Hubungkan Google Drive'}
+          </button>
+        </div>
+      ) : (
+        <div className="bg-emerald-50/65 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs" id="gdrive-connected-banner">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-emerald-100/70 text-emerald-800 rounded-lg shrink-0">
+              <HardDrive className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">Google Drive Aktif &amp; Terhubung</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Terhubung sebagai <span className="font-semibold text-emerald-800">{currentUser?.email || 'Akun Google'}</span>. File yang diunggah akan langsung disimpan di Google Drive Anda.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleDisconnectDrive}
+            className="text-red-600 hover:text-red-700 font-bold text-xs py-2 px-3.5 rounded-lg hover:bg-red-50 transition-all border border-red-200/50 cursor-pointer h-9 shrink-0"
+          >
+            Putus Hubungan
+          </button>
+        </div>
+      )}
 
       {/* Numerical and Visual Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="documents-stats-cards">
