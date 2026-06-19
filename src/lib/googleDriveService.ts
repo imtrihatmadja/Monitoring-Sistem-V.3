@@ -7,8 +7,6 @@ export async function uploadFileToGoogleDrive(
 ): Promise<{ id: string; webViewLink: string; mimeType: string }> {
   try {
     const boundary = 'dfw_gdrive_upload_boundary';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const close_delim = `\r\n--${boundary}--`;
 
     const metadata = {
       name: file.name,
@@ -25,14 +23,15 @@ export async function uploadFileToGoogleDrive(
     const fileData = await fileDataPromise;
 
     // Build the multipart request body
-    const metadataPart = `${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
-    const mediaPartHeader = `Content-Type: ${metadata.mimeType}\r\n\r\n`;
+    const metadataPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
+    const mediaPartHeader = `--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`;
+    const closeDelim = `\r\n--${boundary}--`;
 
     const blob = new Blob([
       metadataPart,
       mediaPartHeader,
       new Uint8Array(fileData),
-      close_delim
+      closeDelim
     ]);
 
     // Send to Google Drive Upload API
