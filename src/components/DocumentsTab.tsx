@@ -368,25 +368,65 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
       {/* Google Drive Status Alert/Banner */}
       {!accessToken ? (
-        <div className="bg-amber-50/75 border border-amber-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs" id="gdrive-not-connected-banner">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 bg-amber-100/80 text-amber-800 rounded-lg shrink-0">
-              <HardDrive className="w-5 h-5" />
+        <div className="space-y-3" id="gdrive-not-connected-banner">
+          <div className="bg-amber-50/75 border border-amber-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-amber-100/80 text-amber-800 rounded-lg shrink-0">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-800">Google Drive Belum Terhubung</h4>
+                <p className="text-[11px] text-slate-600 max-w-xl leading-relaxed">
+                  Hubungkan dengan Google Drive Anda untuk mulai mengunggah file laporan, TOR, dan foto kegiatan secara otomatis langsung ke penyimpanan awan Google Drive Anda.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Google Drive Belum Terhubung</h4>
-              <p className="text-[11px] text-slate-600 max-w-xl leading-relaxed">
-                Hubungkan dengan Google Drive Anda untuk mulai mengunggah file laporan, TOR, dan foto kegiatan secara otomatis langsung ke penyimpanan awan Google Drive Anda.
-              </p>
-            </div>
+            <button
+              onClick={handleConnectDrive}
+              disabled={isDriveConnecting}
+              className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-extrabold text-xs py-2 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto h-9"
+            >
+              <CloudUpload className="w-4 h-4" /> {isDriveConnecting ? 'Menghubungkan...' : 'Hubungkan Google Drive'}
+            </button>
           </div>
-          <button
-            onClick={handleConnectDrive}
-            disabled={isDriveConnecting}
-            className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-extrabold text-xs py-2 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto h-9"
-          >
-            <CloudUpload className="w-4 h-4" /> {isDriveConnecting ? 'Menghubungkan...' : 'Hubungkan Google Drive'}
-          </button>
+
+          {/* Guide card to fix auth/unauthorized-domain */}
+          <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-600 space-y-2.5 shadow-2xs">
+            <div className="flex items-center gap-2 font-black text-slate-800">
+              <span className="text-amber-500 text-sm">💡</span>
+              <span>CARA MENGATASI ERROR "Firebase: Error (auth/unauthorized-domain)"</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              Setiap domain tempat aplikasi dijalankan (termasuk pratinjau AI Studio maupun GitHub Pages) harus didaftarkan di menu <strong>Authorized domains</strong> pada Firebase Console proyek Anda agar login Google berhasil:
+            </p>
+            <ol className="list-decimal list-inside text-[11px] space-y-1.5 pl-1 text-slate-600 font-medium">
+              <li>Buka <strong>Firebase Console</strong> proyek Anda.</li>
+              <li>Masuk ke menu <strong>Authentication</strong> di sisi kiri &gt; pilih tab <strong>Settings</strong>.</li>
+              <li>Pilih menu <strong>Authorized domains</strong>, klik tombol <strong>Add domain</strong> (Tambah domain).</li>
+              <li>Masukkan domain-domain berikut ini satu-per-satu (<strong>PENTING: Jangan sertakan https:// atau tanda garis miring /</strong>):</li>
+            </ol>
+            <div className="bg-slate-800 p-3 rounded-xl font-mono text-[10px] text-zinc-300 select-all space-y-2 border border-slate-700/50 shadow-inner">
+              <div className="flex items-center justify-between pb-1 border-b border-slate-700 text-zinc-400 text-[9px] font-sans">
+                <span>Domain yang harus dimasukkan (Salin satu per satu):</span>
+                <span className="text-[8px] bg-zinc-700 text-zinc-300 py-0.5 px-1.5 rounded-sm uppercase tracking-wider font-semibold">Salin</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[9px] font-sans">1. Untuk GitHub Pages Anda (Hanya domain bersih):</span>
+                <span className="font-semibold text-emerald-400">imtrihatmadja.github.io</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[9px] font-sans">2. Domain Ruang Kerja Development ini:</span>
+                <span className="font-semibold text-amber-400">ais-dev-shvwan7awjn5ikoq23hszt-950445958778.asia-southeast1.run.app</span>
+              </div>
+              <div>
+                <span className="text-zinc-500 block text-[9px] font-sans">3. Domain Pratinjau Shared ini:</span>
+                <span className="font-semibold text-amber-400">ais-pre-shvwan7awjn5ikoq23hszt-950445958778.asia-southeast1.run.app</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed font-semibold italic">
+              *Catatan: Pastikan menuliskan persis tanpa "https://" dan tanpa subfolder di belakangnya. Setelah domain-domain tersebut disimpan di Firebase Console, harap muat ulang (refresh) halaman ini dan coba hubungkan kembali!
+            </p>
+          </div>
         </div>
       ) : (
         <div className="bg-emerald-50/65 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs" id="gdrive-connected-banner">
