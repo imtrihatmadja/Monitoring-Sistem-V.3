@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { DOC_CATEGORIES } from './DocumentsTab';
 import { ProjectLearningSection } from './ProjectLearningSection';
+import { getAccessToken } from '../lib/googleAuth';
+import { deleteFileFromGoogleDrive } from '../lib/googleDriveService';
 
 interface ProjectDetailTabProps {
   project: Project;
@@ -571,9 +573,22 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                           if (window.confirm(`Hapus dokumen "${doc.fileName}" dari proyek ini?`)) {
+                            // Delete from Google Drive if there's an active token and a drive file ID
+                            if (doc.driveFileId) {
+                              const token = getAccessToken();
+                              if (token) {
+                                try {
+                                  await deleteFileFromGoogleDrive(doc.driveFileId, token);
+                                  console.log(`Document file ${doc.driveFileId} successfully deleted of ${doc.fileName}`);
+                                } catch (err: any) {
+                                  console.warn('Gagal menghapus file dari Google Drive:', err);
+                                  alert(`Catatan: File di Google Drive tidak dapat dihapus (${err.message || err}), namun metadata di database tetap dihapus.`);
+                                }
+                              }
+                            }
                             onUpdateDocuments(documents.filter(d => d.id !== doc.id));
                           }
                         }}

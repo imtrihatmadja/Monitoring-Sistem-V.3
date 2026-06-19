@@ -22,7 +22,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { initAuth, googleSignIn, logout } from '../lib/googleAuth';
-import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
+import { uploadFileToGoogleDrive, deleteFileFromGoogleDrive } from '../lib/googleDriveService';
 
 export const DOC_CATEGORIES = [
   { code: 'TOR', label: 'TOR / Proposal', icon: '📋' },
@@ -324,11 +324,37 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   };
 
   // Delete handler
-  const handleDeleteDoc = (docId: string, docName: string, e: React.MouseEvent) => {
+  const handleDeleteDoc = async (docId: string, docName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    const targetDoc = documents.find(doc => doc.id === docId);
+    if (!targetDoc) return;
+
     if (window.confirm(`Apakah Anda yakin ingin menghapus dokumen "${docName}" dari sistem secara permanen?`)) {
-      const filtered = documents.filter((doc) => doc.id !== docId);
-      onUpdateDocuments(filtered);
+      try {
+        // If the document has a file in Google Drive, and Google Drive is connected, delete it
+        if (targetDoc.driveFileId) {
+          if (accessToken) {
+            try {
+              await deleteFileFromGoogleDrive(targetDoc.driveFileId, accessToken);
+              console.log(`Successfully deleted file ${targetDoc.driveFileId} from Google Drive.`);
+            } catch (err: any) {
+              console.warn(`Gagal menghapus file dari Google Drive, tetapi metadata tetap dihapus: ${err.message || err}`);
+              // We'll proceed with metadata deletion anyway, but inform them
+              alert(`Catatan: File di Google Drive tidak dapat dihapus (${err.message || err}), namun metadata di database tetap akan dihapus.`);
+            }
+          } else {
+            console.warn('Google Drive belum terhubung, penghapusan file diabaikan.');
+          }
+        }
+
+        // Always delete metadata from local list and Supabase
+        const filtered = documents.filter((doc) => doc.id !== docId);
+        onUpdateDocuments(filtered);
+      } catch (err: any) {
+        console.error('Failed to handle document delete flow:', err);
+        alert(`Gagal menghapus dokumen: ${err.message || err}`);
+      }
     }
   };
 

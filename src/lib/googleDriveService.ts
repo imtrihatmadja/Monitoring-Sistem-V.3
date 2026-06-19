@@ -158,3 +158,29 @@ export async function uploadFileToGoogleDrive(
   }
 }
 
+export async function deleteFileFromGoogleDrive(
+  fileId: string,
+  accessToken: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (response.status === 204 || response.ok) {
+      return true;
+    } else {
+      const errText = await response.text();
+      console.warn(`Gagal menghapus file di Google Drive: ${response.status} - ${errText}`);
+      throw new Error(`Google Drive delete error: ${response.status} - ${errText}`);
+    }
+  } catch (error) {
+    console.error(`Failed to delete file ${fileId} from Google Drive:`, error);
+    throw error;
+  }
+}
+
+
