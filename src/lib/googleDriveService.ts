@@ -1,17 +1,110 @@
 /**
  * Service to handle uploading files to Google Drive using the REST API v3.
  */
+
+/**
+ * Searches for a folder by name and parent folder ID. 
+ * If it doesn't exist, it creates it automatically.
+ */
+async function getOrCreateFolder(
+  folderName: string,
+  accessToken: string,
+  parentId?: string
+): Promise<string> {
+  const queryParts = [
+    `name = '${folderName.replace(/'/g, "\\'")}'`,
+    `mimeType = 'application/vnd.google-apps.folder'`,
+    `trashed = false`
+  ];
+  
+  if (parentId) {
+    queryParts.push(`'${parentId}' in parents`);
+  } else {
+    queryParts.push(`'root' in parents`);
+  }
+
+  const query = queryParts.join(' and ');
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id)`;
+  
+  const searchResponse = await fetch(searchUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (searchResponse.ok) {
+    const searchResult = await searchResponse.json();
+    if (searchResult.files && searchResult.files.length > 0) {
+      return searchResult.files[0].id;
+    }
+  } else {
+    const errText = await searchResponse.text();
+    console.warn(`Search folder "${folderName}" warning:`, errText);
+  }
+
+  // Create the folder if not found
+  const createMetadata: any = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+  };
+  if (parentId) {
+    createMetadata.parents = [parentId];
+  }
+
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(createMetadata),
+  });
+
+  if (!createResponse.ok) {
+    const errText = await createResponse.text();
+    throw new Error(`Gagal membuat folder Google Drive "${folderName}": ${createResponse.status} - ${errText}`);
+  }
+
+  const createResult = await createResponse.json();
+  return createResult.id;
+}
+
 export async function uploadFileToGoogleDrive(
   file: File,
-  accessToken: string
-): Promise<{ id: string; webViewLink: string; mimeType: string }> {
+  accessToken: string,
+  projectName?: string,
+  categoryName?: string
+): Promise<{ id: string; webViewLink: string; mimeType: string; folderId?: string }> {
   try {
     const boundary = 'dfw_gdrive_upload_boundary';
+    let targetFolderId: string | undefined;
 
-    const metadata = {
+    // 1. Automatically resolve or build foldering hierarchy
+    // Create an overall App Root folder to keep everything clean and organized.
+    const appRootFolderId = await getOrCreateFolder("DFW Monitoring Sistem V3", accessToken);
+    targetFolderId = appRootFolderId;
+
+    if (projectName) {
+      // Find or create project folder inside the "DFW Monitoring Sistem V3" root folder
+      const projectFolderId = await getOrCreateFolder(projectName, accessToken, appRootFolderId);
+      targetFolderId = projectFolderId;
+
+      if (categoryName) {
+        // Find or create category folder inside the project folder
+        const categoryFolderId = await getOrCreateFolder(categoryName, accessToken, projectFolderId);
+        targetFolderId = categoryFolderId;
+      }
+    }
+
+    const metadata: any = {
       name: file.name,
       mimeType: file.type || 'application/octet-stream',
     };
+
+    if (targetFolderId) {
+      metadata.parents = [targetFolderId];
+    }
 
     // Read file in as an ArrayBuffer
     const reader = new FileReader();
@@ -56,10 +149,12 @@ export async function uploadFileToGoogleDrive(
     return {
       id: result.id,
       webViewLink: result.webViewLink || `https://drive.google.com/file/d/${result.id}/view`,
-      mimeType: result.mimeType || file.type || 'application/octet-stream'
+      mimeType: result.mimeType || file.type || 'application/octet-stream',
+      folderId: targetFolderId
     };
   } catch (error: any) {
-    console.error('Failed to upload file to Google Drive:', error);
+    console.error('Failed to upload file to Google Drive with automatic folders:', error);
     throw error;
   }
 }
+

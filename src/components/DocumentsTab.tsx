@@ -242,8 +242,8 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
         // Progress update based on files
         setUploadProgress(Math.round(10 + (i / totalFiles) * 80));
 
-        // Upload the actual file to Google Drive
-        const uploadResult = await uploadFileToGoogleDrive(file, accessToken);
+        // Upload the actual file to Google Drive with automatic project and category foldering
+        const uploadResult = await uploadFileToGoogleDrive(file, accessToken, uploadProject, uploadCategory);
         
         const docItem: ProjectDocument = {
           id: `doc-${Date.now()}-${i}`,
@@ -253,7 +253,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           mimeType: uploadResult.mimeType || file.type || 'application/octet-stream',
           fileSize: file.size,
           driveFileId: uploadResult.id,
-          driveFolderId: 'gdrive-user-file-root',
+          driveFolderId: uploadResult.folderId || 'gdrive-user-file-root',
           webViewLink: uploadResult.webViewLink,
           description: uploadDesc.trim() || undefined,
           createdAt: new Date().toISOString().split('T')[0],
