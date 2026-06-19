@@ -690,7 +690,7 @@ export const SupabaseSync = {
 
       // Helper to process IDs consistently
       const convertIdIfSchemaDictates = (table: string, id: string): string => {
-        if (isSchemaFetched && schemaUuidColumns[table]?.has('id') && id) {
+        if (schemaUuidColumns[table]?.has('id') && id) {
           return textToUuid(id);
         }
         return id;
@@ -873,7 +873,7 @@ export const SupabaseSync = {
 
   async deleteProject(projId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['projects']?.has('id') ? textToUuid(projId) : projId;
+    const targetId = schemaUuidColumns['projects']?.has('id') ? textToUuid(projId) : projId;
     const { error } = await supabase.from('projects').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting project from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -892,7 +892,7 @@ export const SupabaseSync = {
 
   async deleteIndicator(indId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_indicators']?.has('id') ? textToUuid(indId) : indId;
+    const targetId = schemaUuidColumns['project_indicators']?.has('id') ? textToUuid(indId) : indId;
     const { error } = await supabase.from('project_indicators').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting indicator from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -911,7 +911,7 @@ export const SupabaseSync = {
 
   async deleteOutcome(outId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_outcomes']?.has('id') ? textToUuid(outId) : outId;
+    const targetId = schemaUuidColumns['project_outcomes']?.has('id') ? textToUuid(outId) : outId;
     const { error } = await supabase.from('project_outcomes').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting outcome from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -927,7 +927,7 @@ export const SupabaseSync = {
 
   async deleteActivity(actId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_activities']?.has('id') ? textToUuid(actId) : actId;
+    const targetId = schemaUuidColumns['project_activities']?.has('id') ? textToUuid(actId) : actId;
     const { error } = await supabase.from('project_activities').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting activity from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -943,7 +943,7 @@ export const SupabaseSync = {
 
   async deleteSubActivity(subActId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_sub_activities']?.has('id') ? textToUuid(subActId) : subActId;
+    const targetId = schemaUuidColumns['project_sub_activities']?.has('id') ? textToUuid(subActId) : subActId;
     try {
       const { error } = await supabase.from('project_sub_activities').delete().eq('id', targetId);
       if (error) throw error;
@@ -961,7 +961,7 @@ export const SupabaseSync = {
 
   async deleteBeneficiary(benId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['beneficiaries']?.has('id') ? textToUuid(benId) : benId;
+    const targetId = schemaUuidColumns['beneficiaries']?.has('id') ? textToUuid(benId) : benId;
     const { error } = await supabase.from('beneficiaries').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting beneficiary from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -977,7 +977,7 @@ export const SupabaseSync = {
 
   async deleteIssue(issueId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['issues']?.has('id') ? textToUuid(issueId) : issueId;
+    const targetId = schemaUuidColumns['issues']?.has('id') ? textToUuid(issueId) : issueId;
     const { error } = await supabase.from('issues').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting issue from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -993,7 +993,7 @@ export const SupabaseSync = {
 
   async deleteStaff(staffId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['staff']?.has('id') ? textToUuid(staffId) : staffId;
+    const targetId = schemaUuidColumns['staff']?.has('id') ? textToUuid(staffId) : staffId;
     const { error } = await supabase.from('staff').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting staff from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -1009,7 +1009,7 @@ export const SupabaseSync = {
 
   async deleteReflection(refId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_reflections']?.has('id') ? textToUuid(refId) : refId;
+    const targetId = schemaUuidColumns['project_reflections']?.has('id') ? textToUuid(refId) : refId;
     const { error } = await supabase.from('project_reflections').delete().eq('id', targetId);
     if (error) {
       console.error(`Error deleting reflection from Supabase: [${error.code}] ${error.message}. Detail: ${error.details || '-'}. Hint: ${error.hint || '-'}`);
@@ -1025,7 +1025,7 @@ export const SupabaseSync = {
 
   async deleteDocument(docId: string): Promise<boolean> {
     if (!supabase) return false;
-    const targetId = isSchemaFetched && schemaUuidColumns['project_documents']?.has('id') ? textToUuid(docId) : docId;
+    const targetId = schemaUuidColumns['project_documents']?.has('id') ? textToUuid(docId) : docId;
     try {
       const { error } = await supabase.from('project_documents').delete().eq('id', targetId);
       if (error) throw error;
