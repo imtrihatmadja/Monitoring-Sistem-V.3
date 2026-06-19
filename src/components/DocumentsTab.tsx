@@ -115,6 +115,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   const [uploadDesc, setUploadDesc] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Edit Form Fields
   const [editFileName, setEditFileName] = useState('');
@@ -229,6 +230,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
     setIsUploading(true);
     setUploadProgress(10);
+    setUploadError(null);
 
     try {
       const newDocuments: ProjectDocument[] = [];
@@ -271,7 +273,8 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       setUploadDesc('');
     } catch (err: any) {
       console.error('File Upload to Google Drive Failed:', err);
-      alert(`Terjadi kesalahan saat mengunggah file ke Google Drive: ${err.message || err}`);
+      const errMsg = err.message || String(err);
+      setUploadError(errMsg);
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -357,6 +360,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
               setUploadProject(projects[0]?.name || '');
               setUploadCategory('TOR');
               setUploadDesc('');
+              setUploadError(null);
               setIsUploadOpen(true);
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer h-9"
@@ -632,6 +636,55 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
             </div>
 
             <form onSubmit={handleStartUpload} className="p-5 space-y-4">
+              {/* Display upload errors beautifully */}
+              {uploadError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl space-y-2 text-[11px] shadow-sm">
+                  <div className="font-bold flex items-center gap-1.5 text-xs text-rose-900">
+                    <span>⚠️ Gagal Mengunggah Berkas</span>
+                  </div>
+                  
+                  {(() => {
+                    const apiLinkMatch = uploadError.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/drive\.googleapis\.com\/overview[^\s"'`]+/);
+                    const apiLink = apiLinkMatch ? apiLinkMatch[0] : null;
+
+                    if (uploadError.includes("Google Drive API has not been used") || apiLink) {
+                      return (
+                        <div className="space-y-2 mt-1">
+                          <p className="leading-relaxed text-rose-750">
+                            <strong>Penyebab:</strong> Layanan <strong>Google Drive API</strong> belum diaktifkan di konsol Google Cloud (GCP) Anda.
+                          </p>
+                          <div className="bg-white/80 border border-rose-100 p-2.5 rounded-lg space-y-1">
+                            <span className="font-bold block text-[10px] text-slate-705">CARA MENGAKTIFKAN:</span>
+                            <ol className="list-decimal list-inside space-y-1 text-slate-600">
+                              <li>Klik link di bawah ini untuk menuju halaman aktivasi:</li>
+                              <div className="my-1.5 font-mono text-[9px] bg-slate-900 p-2.5 rounded-md truncate relative flex items-center justify-between">
+                                <a 
+                                  href={apiLink || "https://console.cloud.google.com/apis/library/drive.googleapis.com"} 
+                                  target="_blank" 
+                                  referrerPolicy="no-referrer"
+                                  className="text-amber-400 font-bold hover:underline truncate mr-2"
+                                  title="Buka halaman aktivasi Google Drive API"
+                                >
+                                  {apiLink || "Buka Halaman Google Drive API"} ↗
+                                </a>
+                              </div>
+                              <li>Di halaman konsol tersebut, klik tombol <strong>"Enable" (Aktifkan)</strong>.</li>
+                              <li>Tunggu sekitar 1-2 menit, lalu silakan dicoba klik tombol <strong>"Unggah Sekarang"</strong> kembali!</li>
+                            </ol>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <p className="font-mono bg-white/65 p-2 rounded border border-rose-100/50 break-all select-all">
+                        {uploadError}
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Drag and Drop Zone Area */}
               <div
                 className="border-2 border-dashed border-slate-205 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/5 transition-all relative cursor-pointer"
