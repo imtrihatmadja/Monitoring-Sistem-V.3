@@ -47,6 +47,7 @@ interface DocumentsTabProps {
   projects: Project[];
   onUpdateDocuments: (newDocs: ProjectDocument[]) => void;
   onRefresh: () => void;
+  initialProjectFilter?: string;
 }
 
 export const DocumentsTab: React.FC<DocumentsTabProps> = ({
@@ -54,10 +55,17 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   projects,
   onUpdateDocuments,
   onRefresh,
+  initialProjectFilter = '',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [projectFilter, setProjectFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState(initialProjectFilter);
+
+  useEffect(() => {
+    if (initialProjectFilter) {
+      setProjectFilter(initialProjectFilter);
+    }
+  }, [initialProjectFilter]);
 
   // Modals state
   const [isUploadOpen, setIsUploadOpen] = useState(false);

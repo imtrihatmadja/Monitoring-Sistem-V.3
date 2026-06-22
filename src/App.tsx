@@ -80,6 +80,7 @@ export default function App() {
   >('dashboard');
   
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [docProjectFilter, setDocProjectFilter] = useState<string>('');
 
   // Modals state
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -1830,6 +1831,7 @@ export default function App() {
             onClick={() => {
               setActiveTab('documents');
               setSelectedProjectId('');
+              setDocProjectFilter('');
             }}
             className={`w-full py-2.5 px-3 rounded-lg flex items-center gap-3 cursor-pointer text-left transition-all ${
               activeTab === 'documents'
@@ -1998,6 +2000,10 @@ export default function App() {
                     const updated = projects.map(p => p.id === projId ? { ...p, budgetActual: amount } : p);
                     updateProjectsInStorage(updated);
                   }}
+                  onGoToDocumentsTab={() => {
+                    setDocProjectFilter(proj.name);
+                    setActiveTab('documents');
+                  }}
                   onAddReflection={handleAddReflectionInline}
                   onDeleteReflection={handleDeleteReflectionInline}
                 />
@@ -2122,6 +2128,7 @@ export default function App() {
               documents={documents}
               projects={projects}
               onUpdateDocuments={updateDocumentsInStorage}
+              initialProjectFilter={docProjectFilter}
               onRefresh={() => {
                 setSyncToast('success');
                 setTimeout(() => setSyncToast(''), 1500);

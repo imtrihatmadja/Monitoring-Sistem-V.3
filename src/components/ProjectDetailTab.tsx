@@ -49,6 +49,7 @@ interface ProjectDetailTabProps {
   onDeleteActivityClick: (activityId: string) => void;
   onSaveIndicatorValue: (indicatorId: string, newValue: number) => void;
   onUpdateBudgetActual?: (projectId: string, newBudgetActual: number) => void;
+  onGoToDocumentsTab?: () => void;
   onAddReflection: (reflection: Partial<ProjectReflection>) => void;
   onDeleteReflection: (refId: string) => void;
 }
@@ -70,6 +71,7 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
   onDeleteActivityClick,
   onSaveIndicatorValue,
   onUpdateBudgetActual,
+  onGoToDocumentsTab,
   onAddReflection,
   onDeleteReflection,
 }) => {
@@ -569,130 +571,21 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
           </div>
           <button
             onClick={() => {
-              setInlineDocFile(null);
-              setInlineDocCategory('TOR');
-              setInlineDocDesc('');
-              setShowDocUpload(!showDocUpload);
+              if (onGoToDocumentsTab) {
+                onGoToDocumentsTab();
+              }
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-1.5 px-3 rounded-lg shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
           >
-            {showDocUpload ? '✕ Tutup' : '☁️ Unggah'}
+            ☁️ Unggah Dokumen
           </button>
         </div>
-
-        {/* Inline uploading block */}
-        {showDocUpload && (
-          <div className="bg-slate-50/55 p-4 rounded-xl border border-slate-200/60 space-y-3 text-xs">
-            <span className="text-[10px] font-extrabold text-slate-705 uppercase tracking-widest block">☁️ Upload Berkas untuk Proyek ini</span>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-slate-500 font-bold">Pilih Berkas *</label>
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setInlineDocFile(e.target.files[0]);
-                    }
-                  }}
-                  className="w-full bg-white border border-slate-205 rounded-lg py-1 px-2 text-xs cursor-pointer font-semibold text-slate-700"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-slate-500 font-bold block">Kategori Berkas *</label>
-                <select
-                  required
-                  className="w-full bg-white border border-slate-200 py-1.5 px-3 rounded-lg focus:outline-none focus:border-blue-400 text-xs font-semibold text-slate-750"
-                  value={inlineDocCategory}
-                  onChange={(e) => setInlineDocCategory(e.target.value)}
-                >
-                  {DOC_CATEGORIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.icon} {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-span-full space-y-1">
-                <label className="text-slate-500 font-bold block">Deskripsi / Catatan Tambahan (Opsional)</label>
-                <input
-                  type="text"
-                  placeholder="Keterangan singkat tentang isi berkas..."
-                  className="w-full bg-white border border-slate-200 py-1.5 px-3 rounded-lg text-xs font-semibold"
-                  value={inlineDocDesc}
-                  onChange={(e) => setInlineDocDesc(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {inlineIsUploading && (
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between text-[11px] font-bold text-blue-600">
-                  <span>Mengunggah berkas ke Google Drive...</span>
-                  <span>{inlineDocProgress}%</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1">
-                  <div className="bg-blue-600 h-1 rounded-full transition-all duration-300" style={{ width: `${inlineDocProgress}%` }} />
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1.5">
-              <button
-                type="button"
-                onClick={() => setShowDocUpload(false)}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold py-1 px-3 rounded-lg cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={!inlineDocFile || inlineIsUploading}
-                onClick={() => {
-                  if (!inlineDocFile) return;
-                  setInlineIsUploading(true);
-                  setInlineDocProgress(20);
-                  setTimeout(() => {
-                    setInlineDocProgress(70);
-                    setTimeout(() => {
-                      setInlineDocProgress(100);
-                      const genId = `drive-inline-${Date.now()}`;
-                      const inlineNewDoc: ProjectDocument = {
-                        id: `doc-${Date.now()}`,
-                        projectName: project.name,
-                        category: inlineDocCategory,
-                        fileName: inlineDocFile.name,
-                        mimeType: inlineDocFile.type || 'application/octet-stream',
-                        fileSize: inlineDocFile.size,
-                        driveFileId: genId,
-                        driveFolderId: 'folder-gdrive-dfw-prod',
-                        webViewLink: `https://drive.google.com/file/d/${genId}/view`,
-                        description: inlineDocDesc.trim() || undefined,
-                        createdAt: new Date().toISOString().split('T')[0],
-                      };
-                      onUpdateDocuments([...documents, inlineNewDoc]);
-                      setInlineIsUploading(false);
-                      setShowDocUpload(false);
-                      setInlineDocFile(null);
-                      setInlineDocDesc('');
-                    }, 500);
-                  }, 450);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold py-1 px-4 rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
-              >
-                <CloudUpload className="w-3.5 h-3.5" /> Unggah Sekarang
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* List of project documents */}
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
           {documents.filter(d => d.projectName === project.name).length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-xs">
-              Belum ada dokumen yang terdaftar untuk proyek ini. Klik tombol Unggah untuk menambahkan berkas pendukung.
+              Belum ada dokumen yang terdaftar untuk proyek ini. Klik tombol Unggah Dokumen untuk mengelola dan menambahkan berkas pendukung di halaman Manajemen Dokumen.
             </div>
           ) : (
             documents
