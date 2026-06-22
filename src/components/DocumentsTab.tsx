@@ -19,10 +19,17 @@ import {
   Info,
   Calendar,
   Layers,
-  HardDrive
+  HardDrive,
+  Settings,
+  UserCheck
 } from 'lucide-react';
-import { initAuth, googleSignIn, logout } from '../lib/googleAuth';
-import { uploadFileToGoogleDrive, deleteFileFromGoogleDrive } from '../lib/googleDriveService';
+import { initAuth, googleSignIn, logout, getAccessToken } from '../lib/googleAuth';
+import { 
+  uploadFileToGoogleDrive, 
+  deleteFileFromGoogleDrive,
+  getOrRefreshAccessToken,
+  saveSharedTokenToSupabase
+} from '../lib/googleDriveService';
 
 export const DOC_CATEGORIES = [
   { code: 'TOR', label: 'TOR / Proposal', icon: '📋' },
@@ -58,53 +65,96 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<ProjectDocument | null>(null);
 
-  // Google Drive Connection State
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [accessToken, setAccessTokenState] = useState<string | null>(null);
-  const [isDriveConnecting, setIsDriveConnecting] = useState(false);
+  // Hidden/Admin Credentials Setup State
+  const [clickCount, setClickCount] = useState(0);
+  const [isAdminSetupOpen, setIsAdminSetupOpen] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupSuccess, setSetupSuccess] = useState<string | null>(null);
+  const [isCheckingToken, setIsCheckingToken] = useState(false);
+  const [savedConfig, setSavedConfig] = useState<any>(null);
 
+  // State to track active resolved Google Drive token
+  const [gdriveStatus, setGdriveStatus] = useState<'resolved' | 'checking' | 'unconfigured'>('checking');
+  const [gdriveActiveEmail, setGdriveActiveEmail] = useState<string>('imam.trihatmadja@dfw.or.id');
+
+  // Load and check the Google Drive Permanent Connection on component mount
   useEffect(() => {
-    const unsubscribe = initAuth(
-      (user, token) => {
-        setCurrentUser(user);
-        setAccessTokenState(token);
-      },
-      () => {
-        setCurrentUser(null);
-        setAccessTokenState(null);
-      }
-    );
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+    // Check URL parameters for explicit setup
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('gdrive_setup') === 'true') {
+      setIsAdminSetupOpen(true);
+    }
+
+    const checkActiveConnection = async () => {
+      try {
+        setGdriveStatus('checking');
+        const token = await getOrRefreshAccessToken();
+        if (token) {
+          // Check who owns the token
+          const testRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (testRes.ok) {
+            const userData = await testRes.json();
+            if (userData.email) {
+              setGdriveActiveEmail(userData.email);
+            }
+          }
+          setGdriveStatus('resolved');
+        } else {
+          setGdriveStatus('unconfigured');
+        }
+      } catch (err) {
+        console.warn('Silent Google Drive activation notice:', err);
+        setGdriveStatus('unconfigured');
       }
     };
-  }, []);
 
-  const handleConnectDrive = async () => {
-    setIsDriveConnecting(true);
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setCurrentUser(result.user);
-        setAccessTokenState(result.accessToken);
-      }
-    } catch (err: any) {
-      alert('Gagal menghubungkan Google Drive: ' + err.message);
-    } finally {
-      setIsDriveConnecting(false);
+    checkActiveConnection();
+  }, [documents]);
+
+  const handleTitleBadgeClick = () => {
+    const nextCount = clickCount + 1;
+    setClickCount(nextCount);
+    if (nextCount >= 5) {
+      setIsAdminSetupOpen(true);
+      setClickCount(0);
     }
   };
 
-  const handleDisconnectDrive = async () => {
-    if (window.confirm('Apakah Anda yakin ingin memutuskan hubungan dengan Google Drive?')) {
-      try {
-        await logout();
-        setCurrentUser(null);
-        setAccessTokenState(null);
-      } catch (err: any) {
-        alert('Gagal memutuskan Google Drive: ' + err.message);
+  const handleSavePermanentCredentials = async () => {
+    setSetupError(null);
+    setSetupSuccess(null);
+    setIsCheckingToken(true);
+    try {
+      const authResult = await googleSignIn();
+      if (!authResult) {
+        throw new Error('Google authentication cancelled by user.');
       }
+
+      const email = authResult.user.email || 'imam.trihatmadja@dfw.or.id';
+      
+      // Save credentials directly to the shared Supabase record
+      const successSaved = await saveSharedTokenToSupabase(
+        authResult.accessToken,
+        email
+      );
+
+      if (successSaved) {
+        setSetupSuccess(`Koneksi permanen gdrive atas akun "${email}" berhasil disimpan dan dibagikan ke seluruh pengguna sistem.`);
+        setGdriveStatus('resolved');
+        setGdriveActiveEmail(email);
+        
+        // Push the update to local state so standard components instantly refresh
+        onRefresh();
+      } else {
+        throw new Error('Gagal menyimpan record kredensial ke Supabase.');
+      }
+    } catch (err: any) {
+      console.error('Google credentials synchronization failed:', err);
+      setSetupError(err.message || 'Koneksi gagal dibuat. Silakan periksa Authorized Domain Firebase.');
+    } finally {
+      setIsCheckingToken(false);
     }
   };
 
@@ -152,14 +202,17 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
     return (bytes / 1048576).toFixed(1) + ' MB';
   };
 
+  // Exclude system secrets and tokens from table or stats calculating
+  const actualDocs = documents.filter((d) => d.id !== 'doc-gdrive-config' && d.fileName !== '__SHARED_GDRIVE_TOKEN__');
+
   // Stats calculation
-  const totalFilesCount = documents.length;
-  const totalBytesValue = documents.reduce((sum, d) => sum + (d.fileSize || 0), 0);
+  const totalFilesCount = actualDocs.length;
+  const totalBytesValue = actualDocs.reduce((sum, d) => sum + (d.fileSize || 0), 0);
   const totalMbText = (totalBytesValue / 1048576).toFixed(1);
 
   // Group by category counts
   const categoryCounts: Record<string, number> = {};
-  documents.forEach((d) => {
+  actualDocs.forEach((d) => {
     categoryCounts[d.category] = (categoryCounts[d.category] || 0) + 1;
   });
 
@@ -175,7 +228,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
     });
 
   // Filter List
-  const filteredDocs = documents.filter((doc) => {
+  const filteredDocs = actualDocs.filter((doc) => {
     const s = searchQuery.toLowerCase();
     const matchesSearch =
       doc.fileName.toLowerCase().includes(s) ||
@@ -223,16 +276,14 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       alert('Pilih asosiasi proyek terlebih dahulu.');
       return;
     }
-    if (!accessToken) {
-      alert('Hubungkan akun Google Drive Anda terlebih dahulu sebelum mengunggah berkas.');
-      return;
-    }
 
     setIsUploading(true);
     setUploadProgress(10);
     setUploadError(null);
 
     try {
+      // Fail fast if token cannot be resolved early
+      const accessToken = await getOrRefreshAccessToken();
       const newDocuments: ProjectDocument[] = [];
       const totalFiles = stagedFiles.length;
 
@@ -332,19 +383,15 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
     if (window.confirm(`Apakah Anda yakin ingin menghapus dokumen "${docName}" dari sistem secara permanen?`)) {
       try {
-        // If the document has a file in Google Drive, and Google Drive is connected, delete it
+        // If the document has a file in Google Drive, delete it
         if (targetDoc.driveFileId) {
-          if (accessToken) {
-            try {
-              await deleteFileFromGoogleDrive(targetDoc.driveFileId, accessToken);
-              console.log(`Successfully deleted file ${targetDoc.driveFileId} from Google Drive.`);
-            } catch (err: any) {
-              console.warn(`Gagal menghapus file dari Google Drive, tetapi metadata tetap dihapus: ${err.message || err}`);
-              // We'll proceed with metadata deletion anyway, but inform them
-              alert(`Catatan: File di Google Drive tidak dapat dihapus (${err.message || err}), namun metadata di database tetap akan dihapus.`);
-            }
-          } else {
-            console.warn('Google Drive belum terhubung, penghapusan file diabaikan.');
+          try {
+            const token = await getOrRefreshAccessToken().catch(() => '');
+            await deleteFileFromGoogleDrive(targetDoc.driveFileId, token);
+            console.log(`Successfully deleted file ${targetDoc.driveFileId} from Google Drive.`);
+          } catch (err: any) {
+            console.warn(`Gagal menghapus file dari Google Drive, tetapi metadata tetap dihapus: ${err.message || err}`);
+            alert(`Catatan: File di Google Drive tidak dapat dihapus (${err.message || err}), namun metadata di database tetap akan dihapus.`);
           }
         }
 
@@ -361,16 +408,21 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   return (
     <div className="space-y-6" id="documents-tab-section">
       {/* Top Banner Navigation area */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
         <div>
           <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             📂 Manajemen Berkas &amp; Dokumen
-            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 py-0.5 px-2 rounded-full">
-              Sinkronisasi Google Drive
-            </span>
+            <button 
+              onClick={handleTitleBadgeClick}
+              className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 hover:bg-blue-100 py-0.5 px-2.5 rounded-full cursor-pointer transition-all flex items-center gap-1 shrink-0"
+              title="Klik 5 kali untuk membuka Setelan Administrasi Google Drive"
+            >
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${gdriveStatus === 'resolved' ? 'bg-emerald-500' : 'bg-slate-300 animate-pulse'}`} />
+              Gdrive: {gdriveStatus === 'resolved' ? gdriveActiveEmail : 'Unset'}
+            </button>
           </h2>
           <p className="text-xs text-slate-500">
-            Unggah berkas, laporan bulanan, foto lapangan, dan kelola arsip digital untuk seluruh portofolio proyek DFW
+            Unggah dokumen secara otomatis ke folder <strong className="text-slate-700">Monitoring Sistem V3</strong> di Google Drive akun <strong className="text-slate-700">imam.trihatmadja@dfw.or.id</strong>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -396,93 +448,9 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
         </div>
       </div>
 
-      {/* Google Drive Status Alert/Banner */}
-      {!accessToken ? (
-        <div className="space-y-3" id="gdrive-not-connected-banner">
-          <div className="bg-amber-50/75 border border-amber-200/60 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-amber-100/80 text-amber-800 rounded-lg shrink-0">
-                <HardDrive className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-800">Google Drive Belum Terhubung</h4>
-                <p className="text-[11px] text-slate-600 max-w-xl leading-relaxed">
-                  Hubungkan dengan Google Drive Anda untuk mulai mengunggah file laporan, TOR, dan foto kegiatan secara otomatis langsung ke penyimpanan awan Google Drive Anda.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleConnectDrive}
-              disabled={isDriveConnecting}
-              className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-extrabold text-xs py-2 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto h-9"
-            >
-              <CloudUpload className="w-4 h-4" /> {isDriveConnecting ? 'Menghubungkan...' : 'Hubungkan Google Drive'}
-            </button>
-          </div>
-
-          {/* Guide card to fix auth/unauthorized-domain */}
-          <div className="bg-slate-50/90 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-600 space-y-2.5 shadow-2xs">
-            <div className="flex items-center gap-2 font-black text-slate-800">
-              <span className="text-amber-500 text-sm">💡</span>
-              <span>CARA MENGATASI ERROR "Firebase: Error (auth/unauthorized-domain)"</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-slate-500">
-              Setiap domain tempat aplikasi dijalankan (termasuk pratinjau AI Studio maupun GitHub Pages) harus didaftarkan di menu <strong>Authorized domains</strong> pada Firebase Console proyek Anda agar login Google berhasil:
-            </p>
-            <ol className="list-decimal list-inside text-[11px] space-y-1.5 pl-1 text-slate-600 font-medium">
-              <li>Buka <strong>Firebase Console</strong> proyek Anda.</li>
-              <li>Masuk ke menu <strong>Authentication</strong> di sisi kiri &gt; pilih tab <strong>Settings</strong>.</li>
-              <li>Pilih menu <strong>Authorized domains</strong>, klik tombol <strong>Add domain</strong> (Tambah domain).</li>
-              <li>Masukkan domain-domain berikut ini satu-per-satu (<strong>PENTING: Jangan sertakan https:// atau tanda garis miring /</strong>):</li>
-            </ol>
-            <div className="bg-slate-800 p-3 rounded-xl font-mono text-[10px] text-zinc-300 select-all space-y-2 border border-slate-700/50 shadow-inner">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-700 text-zinc-400 text-[9px] font-sans">
-                <span>Domain yang harus dimasukkan (Salin satu per satu):</span>
-                <span className="text-[8px] bg-zinc-700 text-zinc-300 py-0.5 px-1.5 rounded-sm uppercase tracking-wider font-semibold">Salin</span>
-              </div>
-              <div>
-                <span className="text-zinc-500 block text-[9px] font-sans">1. Untuk GitHub Pages Anda (Hanya domain bersih):</span>
-                <span className="font-semibold text-emerald-400">imtrihatmadja.github.io</span>
-              </div>
-              <div>
-                <span className="text-zinc-500 block text-[9px] font-sans">2. Domain Ruang Kerja Development ini:</span>
-                <span className="font-semibold text-amber-400">ais-dev-shvwan7awjn5ikoq23hszt-950445958778.asia-southeast1.run.app</span>
-              </div>
-              <div>
-                <span className="text-zinc-500 block text-[9px] font-sans">3. Domain Pratinjau Shared ini:</span>
-                <span className="font-semibold text-amber-400">ais-pre-shvwan7awjn5ikoq23hszt-950445958778.asia-southeast1.run.app</span>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-relaxed font-semibold italic">
-              *Catatan: Pastikan menuliskan persis tanpa "https://" dan tanpa subfolder di belakangnya. Setelah domain-domain tersebut disimpan di Firebase Console, harap muat ulang (refresh) halaman ini dan coba hubungkan kembali!
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-emerald-50/65 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs" id="gdrive-connected-banner">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 bg-emerald-100/70 text-emerald-800 rounded-lg shrink-0">
-              <HardDrive className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Google Drive Aktif &amp; Terhubung</h4>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Terhubung sebagai <span className="font-semibold text-emerald-800">{currentUser?.email || 'Akun Google'}</span>. File yang diunggah akan langsung disimpan di Google Drive Anda.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleDisconnectDrive}
-            className="text-red-600 hover:text-red-700 font-bold text-xs py-2 px-3.5 rounded-lg hover:bg-red-50 transition-all border border-red-200/50 cursor-pointer h-9 shrink-0"
-          >
-            Putus Hubungan
-          </button>
-        </div>
-      )}
-
       {/* Numerical and Visual Stats Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" id="documents-stats-cards">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4 hover:border-slate-200 transition-all">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in" id="documents-stats-cards">
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4 hover:border-slate-250 transition-all">
           <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
             <Layers className="w-5 h-5" />
           </div>
@@ -499,35 +467,37 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           </div>
           <div>
             <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Kapasitas Penyimpanan</p>
-            <p className="text-2xl font-black text-blue-700 leading-none mt-1">{totalMbText} MB</p>
-            <span className="text-[9px] text-blue-500 font-medium block mt-1">kuota aman tersinkronisasi G-Drive</span>
+            <p className="text-xl font-black text-slate-800 leading-none mt-1">{totalMbText} MB</p>
+            <span className="text-[9px] text-blue-400 block mt-1">Terintegrasi Google Drive Cloud</span>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-emerald-100 bg-emerald-50/5 flex items-center gap-4 hover:border-emerald-200 transition-all">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <FileSpreadsheet className="w-5 h-5" />
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex items-center gap-4 hover:border-slate-250 transition-all">
+          <div className="p-3 bg-slate-50 text-slate-600 rounded-xl">
+            <Calendar className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Kategori Dominan</p>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Klasifikasi Terbanyak</p>
+            <div className="mt-1 flex flex-wrap gap-1">
               {topCategories.length === 0 ? (
-                <span className="text-xs text-slate-400">Belum ada kategori file</span>
+                <span className="text-xs font-semibold text-slate-400">Belum ada dokumen</span>
               ) : (
-                topCategories.map((c, i) => (
-                  <span key={i} className="text-[9px] bg-slate-100 text-slate-600 py-0.5 px-2 rounded-md font-semibold border border-slate-200/50">
-                    {c.label} ({c.count})
+                topCategories.map((tc, index) => (
+                  <span
+                    key={index}
+                    className="text-[10px] font-bold bg-slate-100/80 text-slate-600 py-0.5 px-2 rounded-md"
+                  >
+                    {tc.label} ({tc.count})
                   </span>
                 ))
               )}
             </div>
-            <span className="text-[9px] text-emerald-600 font-bold block mt-1">klasifikasi arsip utama</span>
           </div>
         </div>
       </div>
 
       {/* Filtering Options Ribbon */}
-      <div className="flex flex-col md:flex-row md:items-center gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs" id="documents-filter-ribbon">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs animate-fade-in" id="documents-filter-ribbon">
         <div className="relative flex-1 md:max-w-md">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -539,9 +509,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           />
         </div>
 
-        <div className="flex gap-2 flex-wrap items-center">
+        <div className="flex flex-wrap gap-2 md:ml-auto">
+          {/* Classification Filter */}
           <select
-            className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer"
+            className="bg-slate-50 border border-slate-200 text-slate-600 font-semibold text-xs rounded-xl py-2 px-3.5 focus:outline-none focus:border-blue-400 transition-all"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
@@ -553,8 +524,9 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
             ))}
           </select>
 
+          {/* Project Filter */}
           <select
-            className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer"
+            className="bg-slate-50 border border-slate-200 text-slate-600 font-semibold text-xs rounded-xl py-2 px-3.5 focus:outline-none focus:border-blue-400 transition-all max-w-[200px]"
             value={projectFilter}
             onChange={(e) => setProjectFilter(e.target.value)}
           >
@@ -569,7 +541,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
       </div>
 
       {/* Grid displays */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5" id="documents-grid">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in" id="documents-grid">
         {filteredDocs.length === 0 ? (
           <div className="col-span-full py-16 text-center text-slate-400 text-xs bg-white rounded-2xl border border-dashed border-slate-200">
             <FileMinus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -647,7 +619,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           MODAL: UPLOAD FILE DOKUMEN TO DRIVE
          ========================================= */}
       {isUploadOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full shadow-2xl overflow-hidden font-medium text-slate-700 text-xs">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
               <span className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
@@ -703,7 +675,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                     }
 
                     return (
-                      <p className="font-mono bg-white/65 p-2 rounded border border-rose-100/50 break-all select-all">
+                      <p className="font-mono bg-white/65 p-2 rounded border border-rose-100/50 break-all select-all leading-normal">
                         {uploadError}
                       </p>
                     );
@@ -743,7 +715,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                           <button
                             type="button"
                             onClick={() => removeStagedFile(i)}
-                            className="text-rose-500 hover:text-rose-700 font-bold text-xs"
+                            className="text-rose-500 hover:text-rose-700 font-bold text-xs font-sans"
                           >
                             ✕
                           </button>
@@ -839,7 +811,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           MODAL: EDIT FILE METADATA
          ========================================= */}
       {isEditOpen && selectedDoc && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-150 max-w-md w-full shadow-2xl overflow-hidden font-medium text-slate-700 text-xs">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
               <span className="font-extrabold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
@@ -934,7 +906,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
           MODAL: VIEW DRIVE EMBEDDED PREVIEW
          ========================================= */}
       {isPreviewOpen && selectedDoc && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-100 max-w-4xl w-full h-[85vh] shadow-2xl flex flex-col justify-between overflow-hidden font-medium text-slate-700 text-xs">
             {/* Header toolbar */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -952,7 +924,6 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
             {/* Embedded simulation stage */}
             <div className="flex-1 bg-slate-100 relative">
-              {/* Emulate Drive iframe safely with visual container */}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-905 w-full h-full">
                 <div className="p-5 bg-white rounded-2xl border border-slate-200/55 max-w-sm w-full space-y-4 shadow-sm">
                   <div className="p-4 bg-blue-50 text-blue-600 rounded-full w-14 h-14 mx-auto flex items-center justify-center">
@@ -961,10 +932,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                   <div>
                     <h5 className="font-extrabold text-slate-800 text-xs leading-snug">{selectedDoc.fileName}</h5>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Jenis: {selectedDoc.mimeType}</p>
-                    <p className="text-[10px] text-slate-500 font-bold font-mono mt-1 mt-0.5">Ukuran: {formatSize(selectedDoc.fileSize)}</p>
+                    <p className="text-[10px] text-slate-500 font-bold font-mono mt-0.5">Ukuran: {formatSize(selectedDoc.fileSize)}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg text-left text-[11px] text-slate-600 leading-normal border border-slate-200/50">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase">Deskrpsi Berkas:</span>
+                    <span className="text-[9px] font-bold text-slate-400 block uppercase">Deskripsi Berkas:</span>
                     <p>{selectedDoc.description || 'Tidak ada deskripsi detail berkas.'}</p>
                   </div>
                   <div className="pt-2">
@@ -989,6 +960,108 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                 className="bg-slate-200 hover:bg-slate-300 border border-slate-300 py-1.5 px-3.5 rounded-lg text-slate-700 font-bold cursor-pointer"
               >
                 Tutup Pratinjau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: ADVANCED GOOGLE DRIVE ADMIN SETUP
+         ========================================= */}
+      {isAdminSetupOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-150 max-w-xl w-full shadow-2xl overflow-hidden font-medium text-slate-700 text-xs">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-slate-700 animate-spin-slow" />
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Setelan Cloud Google Drive</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Konfigurasi Penyimpanan Permanen Terpusat</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAdminSetupOpen(false);
+                  setSetupError(null);
+                  setSetupSuccess(null);
+                }}
+                className="p-1.5 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Informative connection indicator */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-800 flex items-center gap-1">
+                    <UserCheck className="w-4 h-4 text-emerald-600" /> Akun Sinkronisasi Aktif:
+                  </span>
+                  <span className="font-mono text-emerald-700 font-bold bg-emerald-50 border border-emerald-150 py-0.5 px-2.5 rounded-full select-all">
+                    {gdriveActiveEmail}
+                  </span>
+                </div>
+                <p className="text-slate-550 leading-relaxed text-[11px]">
+                  Seluruh file yang diupload oleh siapa pun di aplikasi ini akan terkumpul secara terpusat pada Google Drive milik akun <strong className="text-slate-800">{gdriveActiveEmail}</strong>, berkumpul di folder utama <strong className="text-slate-800">"Monitoring Sistem V3"</strong>.
+                </p>
+              </div>
+
+              {/* Status & Alerts feedback messages */}
+              {setupSuccess && (
+                <div className="bg-emerald-50 border border-emerald-250 text-emerald-800 p-4 rounded-xl text-[11px] font-semibold leading-relaxed">
+                  ✅ {setupSuccess}
+                </div>
+              )}
+
+              {setupError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-[11px] leading-normal font-medium space-y-1">
+                  <div className="font-bold text-rose-900">⚠️ Sinkronisasi Kredensial Gagal:</div>
+                  <p>{setupError}</p>
+                </div>
+              )}
+
+              {/* Central Auth Command */}
+              <div className="text-center space-y-2.5 pt-1">
+                <p className="text-[10.5px] text-slate-400 leading-normal max-w-sm mx-auto">
+                  Metode ini menggunakan popup masuk Google sekali saja, lalu menyimpannya di basis data aman agar seluruh pengguna lain dapat langsung mengupload tanpa login mandiri.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSavePermanentCredentials}
+                  disabled={isCheckingToken}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs py-3 px-6 rounded-2xl shadow-xs hover:shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <CloudUpload className="w-4 h-4" /> {isCheckingToken ? 'Menyinkronkan Akun...' : 'Tautkan Akun imam.trihatmadja@dfw.or.id'}
+                </button>
+              </div>
+
+              {/* Alternative Developer Method: Environment variables (unlimited duration) */}
+              <div className="pt-4 border-t border-slate-100 space-y-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Metode Pengembang Server (.env)</span>
+                <p className="text-[10.5px] text-slate-550 leading-relaxed">
+                  Untuk stabilitas jangka panjang tanpa kadaluarsa token, daftarkan <strong>Refresh Token (OAuth Client Credentials)</strong> pada environment variable Workspace/Server:
+                </p>
+                <div className="bg-slate-900 text-zinc-300 font-mono text-[9px] p-3 rounded-2xl border border-slate-800 space-y-1 shadow-inner select-all">
+                  <p><span className="text-emerald-400">VITE_GOOGLE_DRIVE_REFRESH_TOKEN</span>=ya29...</p>
+                  <p><span className="text-emerald-400">VITE_GOOGLE_DRIVE_CLIENT_ID</span>=9504...</p>
+                  <p><span className="text-emerald-400">VITE_GOOGLE_DRIVE_CLIENT_SECRET</span>=GOCSPX-...</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-150 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdminSetupOpen(false);
+                  setSetupError(null);
+                  setSetupSuccess(null);
+                }}
+                className="bg-slate-200 hover:bg-slate-300 border border-slate-300 py-2 px-5 text-slate-700 font-bold rounded-xl cursor-pointer"
+              >
+                Selesai / Tutup
               </button>
             </div>
           </div>
