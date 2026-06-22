@@ -254,7 +254,6 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                                 {p.donor}
                               </span>
                             )}
-                            <ProjectImpactRow projectIndicators={projectIndicators} />
                           </div>
                         </td>
                         <td className="py-4 px-4 text-slate-500 font-medium">{p.location}</td>
@@ -410,9 +409,6 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                         <span className="text-slate-900 font-extrabold">{formatRupiah(p.budgetActual)}</span>
                       </div>
                     </div>
-
-                    {/* Realtime Impact aggregates row */}
-                    <ProjectImpactRow projectIndicators={projectIndicators} />
                   </div>
 
                   {/* Actions inside grid card */}

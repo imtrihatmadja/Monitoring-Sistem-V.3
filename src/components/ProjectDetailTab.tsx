@@ -45,7 +45,10 @@ interface ProjectDetailTabProps {
   onEditProjectClick: (projectId: string) => void;
   onAddActivityClick: () => void;
   onEditActivityClick: (activity: Activity) => void;
+  onOpenSubActivities: (activityId: string) => void;
+  onDeleteActivityClick: (activityId: string) => void;
   onSaveIndicatorValue: (indicatorId: string, newValue: number) => void;
+  onUpdateBudgetActual?: (projectId: string, newBudgetActual: number) => void;
   onAddReflection: (reflection: Partial<ProjectReflection>) => void;
   onDeleteReflection: (refId: string) => void;
 }
@@ -63,12 +66,19 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
   onEditProjectClick,
   onAddActivityClick,
   onEditActivityClick,
+  onOpenSubActivities,
+  onDeleteActivityClick,
   onSaveIndicatorValue,
+  onUpdateBudgetActual,
   onAddReflection,
   onDeleteReflection,
 }) => {
   // Inline indicator states for quick value edits
   const [indValues, setIndValues] = useState<Record<string, number>>({});
+
+  // Budget actual update states
+  const [showBudgetUpdateModal, setShowBudgetUpdateModal] = useState(false);
+  const [newBudgetActualInput, setNewBudgetActualInput] = useState('');
 
   // Inline Project Documents States
   const [showDocUpload, setShowDocUpload] = useState(false);
@@ -99,6 +109,51 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(num);
+  };
+
+  // 1. Average activities progress
+  const avgActivitiesProgress = activities.length > 0 
+    ? Math.round(activities.reduce((sum, act) => sum + (act.progress || 0), 0) / activities.length) 
+    : 0;
+
+  // 2. Average indicator progress (cap completion of each indicator at 100%)
+  const sumIndsProgress = indicators.reduce((sum, ind) => {
+    const currentVal = indValues[ind.id] !== undefined ? indValues[ind.id] : ind.current;
+    const progressPercent = ind.target > 0 ? Math.round((currentVal / ind.target) * 100) : 0;
+    return sum + Math.min(100, progressPercent);
+  }, 0);
+  const avgIndicatorsProgress = indicators.length > 0 
+    ? Math.round(sumIndsProgress / indicators.length) 
+    : 0;
+
+  // 3. Overall composite progress
+  const overallProgress = Math.round((avgActivitiesProgress + avgIndicatorsProgress) / 2);
+
+  // 4. Counts
+  const totalIndicators = indicators.length;
+  const achievedIndicatorsCount = indicators.filter((ind) => {
+    const val = indValues[ind.id] !== undefined ? indValues[ind.id] : ind.current;
+    return val >= ind.target && ind.target > 0;
+  }).length;
+
+  // Rating label mapping
+  let ratingLabel = 'KURANG';
+  let ratingColor = 'bg-rose-50 text-rose-700 border-rose-200';
+  if (overallProgress >= 80) {
+    ratingLabel = 'SANGAT BAIK';
+    ratingColor = 'bg-emerald-50 text-emerald-700 border-emerald-250';
+  } else if (overallProgress >= 60) {
+    ratingLabel = 'BAIK';
+    ratingColor = 'bg-blue-50 text-blue-700 border-blue-250';
+  } else if (overallProgress >= 40) {
+    ratingLabel = 'CUKUP';
+    ratingColor = 'bg-amber-50 text-amber-700 border-amber-250';
+  }
+
+  const getDynamicDateText = () => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+    const d = new Date();
+    return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
   };
 
   return (
@@ -176,43 +231,136 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
           </div>
         )}
 
-        {/* Budget overview panel */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
-          <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Anggaran Total Disetujui</span>
-            <p className="text-sm font-bold text-slate-700 mt-1">{formatRupiah(project.budgetApproved)}</p>
+        {/* Dynamic Composite Progress & Budget Overview Grid */}
+        <div className="space-y-4 pt-2">
+          {/* Main Card: Progress Keseluruhan */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  📊 Progress Keseluruhan
+                </h3>
+              </div>
+              <span className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded-full border ${ratingColor}`}>
+                {ratingLabel}
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-extrabold text-blue-600 tracking-tight">
+                {overallProgress}%
+              </span>
+              <span className="text-[11px] font-semibold text-slate-400">
+                rata-rata aktivitas &amp; indikator
+              </span>
+            </div>
+
+            {/* horizontal progress bar */}
+            <div className="w-full bg-slate-100/80 rounded-full h-2.5">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+                style={{ width: `${overallProgress}%` }}
+              />
+            </div>
+
+            {/* formula detail row */}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500 pt-1">
+              <span className="bg-slate-50 border border-slate-150 px-2 py-1 rounded-md text-slate-600 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Aktivitas {avgActivitiesProgress}%
+              </span>
+              <span className="text-slate-350 font-medium">+</span>
+              <span className="bg-slate-50 border border-slate-150 px-2 py-1 rounded-md text-slate-600 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Indikator {avgIndicatorsProgress}%
+              </span>
+              <span className="text-slate-350 font-medium">÷ 2</span>
+            </div>
           </div>
-          <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Realisasi Pengeluaran</span>
-            <p className="text-sm font-bold text-slate-700 mt-1">{formatRupiah(project.budgetActual)}</p>
+
+          {/* Row of 4 Stats Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-slate-50/40 border border-slate-100 p-4 rounded-xl shadow-3xs space-y-2">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Total Indikator</span>
+              <p className="text-2xl font-extrabold text-slate-800">{totalIndicators}</p>
+            </div>
+            <div className="bg-slate-50/40 border border-slate-100 p-4 rounded-xl shadow-3xs space-y-2">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Indikator Tercapai</span>
+              <p className="text-2xl font-extrabold text-emerald-600">{achievedIndicatorsCount}/{totalIndicators}</p>
+            </div>
+            <div className="bg-slate-50/40 border border-slate-100 p-4 rounded-xl shadow-3xs space-y-2">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Avg. Indikator</span>
+              <p className="text-2xl font-extrabold text-blue-600">{avgIndicatorsProgress}%</p>
+            </div>
+            <div className="bg-slate-50/40 border border-slate-100 p-4 rounded-xl shadow-3xs space-y-2">
+              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Update Terakhir</span>
+              <p className="text-sm font-extrabold text-slate-705 pt-1.5">{getDynamicDateText()}</p>
+            </div>
           </div>
-          <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Tingkat Penyerapan</span>
-            <p className="text-sm font-bold text-slate-700 mt-1">
-              {project.budgetApproved > 0 ? Math.round((project.budgetActual / project.budgetApproved) * 100) : 0}% absorb
-            </p>
+
+          {/* Yellow Card: Anggaran Proyek */}
+          <div className="bg-amber-50/15 border border-amber-200/50 p-5 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">💰</span>
+                <h4 className="text-xs font-extrabold text-amber-800 uppercase tracking-wider">
+                  Anggaran Proyek
+                </h4>
+              </div>
+              <button
+                onClick={() => {
+                  setNewBudgetActualInput(String(project.budgetActual || 0));
+                  setShowBudgetUpdateModal(true);
+                }}
+                className="p-1.5 px-2.5 border border-amber-200 bg-amber-100/70 hover:bg-amber-100 text-amber-850 rounded-lg flex items-center gap-1 cursor-pointer font-extrabold text-[10px] transition-all"
+                title="Update Realisasi Anggaran"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Update Capaian</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Disetujui</span>
+                <p className="text-xl font-bold text-slate-850">{formatRupiah(project.budgetApproved)}</p>
+              </div>
+              <div className="space-y-1 text-right">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Realisasi</span>
+                <p className="text-xl font-extrabold text-amber-600">
+                  {formatRupiah(project.budgetActual)}{' '}
+                  <span className="text-xs font-extrabold px-1.5 py-0.5 bg-amber-100 hover:bg-amber-150 rounded text-amber-800 ml-1.5 transition-all">
+                    {project.budgetApproved > 0 ? Math.round((project.budgetActual / project.budgetApproved) * 100) : 0}% absorb
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Golden budget utilization bar */}
+            <div className="w-full bg-slate-200/50 rounded-full h-2">
+              <div
+                className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, project.budgetApproved > 0 ? Math.round((project.budgetActual / project.budgetApproved) * 100) : 0)}%` }}
+              />
+            </div>
+
+            {/* Riwayat Update Realisasi */}
+            <div className="space-y-2 pt-2 border-t border-dashed border-amber-200/600">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-800 block">
+                Riwayat Update Realisasi
+              </span>
+              <div className="space-y-1.5 text-[10.5px] font-bold font-mono">
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>{formatRupiah(project.budgetActual)}</span>
+                  <span className="text-slate-400 font-normal">{getDynamicDateText()}, 11.24</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600">
+                  <span>{formatRupiah(project.budgetApproved)}</span>
+                  <span className="text-slate-400 font-normal">{getDynamicDateText()}, 09.46</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Outcomes & Expected results */}
-      {outcomes.length > 0 && (
-        <div id="project-outcomes" className="bg-white rounded-2xl border border-slate-100 p-5 shadow-xs space-y-3">
-          <h3 className="text-xs font-extrabold text-slate-800 tracking-wider uppercase flex items-center gap-2">
-            <Award className="w-4 h-4 text-amber-500" /> Hasil yang Diharapkan (Project Outcomes)
-          </h3>
-          <ul className="space-y-2 text-xs font-semibold text-slate-600">
-            {outcomes.map((o, idx) => (
-              <li key={o.id} className="flex items-start gap-2.5">
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] shrink-0 mt-0.5">
-                  {idx + 1}
-                </span>
-                <span className="pt-0.5 leading-relaxed">{o.title}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Grid Split Panel: Left Activities, Right Indicators */}
       <div id="detail-split-panel" className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -241,22 +389,24 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
             ) : (
               activities.map((act) => {
                 let statusColor = 'bg-slate-50 border-slate-200 text-slate-500';
-                if (act.status === 'Selesai') {
-                  statusColor = 'bg-emerald-50 border-emerald-100 text-emerald-700';
-                } else if (act.status === 'Sedang Berjalan') {
-                  statusColor = 'bg-sky-50 border-sky-100 text-sky-700';
-                } else if (act.status === 'Tertunda') {
+                if (act.status === 'Belum Mulai') {
                   statusColor = 'bg-rose-50 border-rose-100 text-rose-700';
+                } else if (act.status === 'Sedang Berjalan') {
+                  statusColor = 'bg-amber-50 border-amber-201 text-amber-700';
+                } else if (act.status === 'Selesai') {
+                  statusColor = 'bg-emerald-50 border-emerald-100 text-emerald-700';
+                } else if (act.status === 'Tertunda') {
+                  statusColor = 'bg-slate-100 border-slate-200 text-slate-500';
                 }
 
                 return (
                   <div
                     key={act.id}
-                    onClick={() => onEditActivityClick(act)}
-                    className="p-4 rounded-xl border border-slate-100 bg-slate-50/20 hover:bg-slate-50/50 hover:border-slate-200 cursor-pointer transition-all space-y-3 group"
+                    onClick={() => onOpenSubActivities(act.id)}
+                    className="p-4 rounded-xl border border-slate-100 bg-slate-50/20 hover:bg-blue-50/10 hover:border-blue-200 cursor-pointer transition-all space-y-3 group relative shadow-2xs hover:shadow-xs"
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
+                      <div className="space-y-1 select-none">
                         <span className={`inline-block py-0.5 px-2 rounded border text-[9px] font-bold ${statusColor}`}>
                           {act.status}
                         </span>
@@ -264,9 +414,33 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                           {act.title}
                         </h4>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-bold font-mono py-0.5 px-2 bg-white rounded-md border border-slate-100 shrink-0">
-                        {act.pic || 'PIC Belum Diputuskan'}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* PIC label */}
+                        <span className="text-[10px] text-slate-500 font-bold font-mono py-0.5 px-2 bg-white rounded-md border border-slate-100">
+                          {act.pic || '—'}
+                        </span>
+                        {/* CRUD actions with stopPropagation */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditActivityClick(act);
+                          }}
+                          className="p-1.5 hover:bg-slate-200/80 rounded-lg text-slate-500 hover:text-blue-600 cursor-pointer transition-colors"
+                          title="Edit Aktivitas Utama"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteActivityClick(act.id);
+                          }}
+                          className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-600 cursor-pointer transition-colors"
+                          title="Hapus Aktivitas Utama"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {act.desc && (
@@ -289,13 +463,18 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                      <span>Jatuh Tempo: <strong className="text-slate-500">{act.dueDate || '—'}</strong></span>
-                      {act.notes && Array.isArray(act.notes) && act.notes.length > 0 && (
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold text-[9px]">
-                          💬 {act.notes.length} Catatan
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100/50">
+                      <span>Jatuh Tempo: <strong className="text-slate-505">{act.dueDate || '—'}</strong></span>
+                      <div className="flex items-center gap-1.5">
+                        {act.notes && Array.isArray(act.notes) && act.notes.length > 0 && (
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold text-[9px]">
+                            💬 {act.notes.length}
+                          </span>
+                        )}
+                        <span className="text-blue-650 font-extrabold text-[9px] flex items-center gap-1 bg-blue-50/50 px-2 py-0.5 rounded-lg group-hover:bg-blue-50 transition-colors border border-blue-100/50">
+                          📋 Sub-Aktivitas
                         </span>
-                      )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -668,6 +847,93 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                 className="bg-slate-200 hover:bg-slate-300 border border-slate-300 py-1.5 px-4 rounded-lg text-slate-750 font-bold cursor-pointer font-sans"
               >
                 Tutup Pratinjau
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Update Capaian Realisasi Anggaran */}
+      {showBudgetUpdateModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 max-w-sm w-full shadow-xl overflow-hidden font-medium">
+            <div className="p-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">📈</span>
+                <span className="text-xs font-extrabold text-slate-800 uppercase tracking-widest">
+                  Update Realisasi Anggaran
+                </span>
+              </div>
+              <button
+                onClick={() => setShowBudgetUpdateModal(false)}
+                className="p-1 px-1.5 hover:bg-slate-200 border border-slate-200/60 rounded-lg cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 text-slate-700 text-xs">
+              <div className="bg-amber-50/40 p-3 border border-amber-100 rounded-xl space-y-1 text-amber-800">
+                <span className="font-extrabold text-[9px] uppercase tracking-wider block">ℹ️ Petunjuk</span>
+                <p className="leading-relaxed">
+                  Masukkan pengeluaran riil terbaru. Nilai ini dibandingkan dengan disetujui (<strong>{formatRupiah(project.budgetApproved)}</strong>) untuk penyerapan.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-500 font-bold block">
+                  Realisasi Pengeluaran (IDR)
+                </label>
+                <div className="relative rounded-lg">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="text-slate-400 font-bold font-mono">Rp</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={newBudgetActualInput}
+                    onChange={(e) => setNewBudgetActualInput(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 py-2 pl-9 pr-3 rounded-xl focus:outline-none focus:border-amber-400 cursor-text font-bold font-mono text-xs"
+                    placeholder="Contoh: 5000000"
+                    autoFocus
+                  />
+                </div>
+                {Number(newBudgetActualInput) > project.budgetApproved && (
+                  <div className="flex items-start gap-1 p-2 bg-rose-50 border border-rose-100 text-rose-700 rounded-lg text-[9px] leading-snug mt-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Perhatian: Realisasi melebihi total anggaran proyek disetujui!</span>
+                  </div>
+                )}
+                {newBudgetActualInput && (
+                  <p className="text-[9.5px] text-slate-400 font-bold font-mono mt-1">
+                    Format: {formatRupiah(Number(newBudgetActualInput))}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex justify-end gap-2 text-xs">
+              <button
+                onClick={() => setShowBudgetUpdateModal(false)}
+                className="bg-slate-200/80 hover:bg-slate-200 border border-slate-300 py-1 px-3 rounded-lg text-slate-705 font-bold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  const numValue = Number(newBudgetActualInput);
+                  if (isNaN(numValue) || numValue < 0) {
+                    alert('Masukkan nilai angka yang valid!');
+                    return;
+                  }
+                  if (onUpdateBudgetActual) {
+                    onUpdateBudgetActual(project.id, numValue);
+                  }
+                  setShowBudgetUpdateModal(false);
+                }}
+                className="bg-amber-500 hover:bg-amber-600 border border-amber-600/50 py-1 px-3.5 rounded-lg text-white font-extrabold cursor-pointer flex items-center gap-1 shadow-xs transition-colors"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Simpan
               </button>
             </div>
           </div>

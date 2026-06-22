@@ -1691,15 +1691,25 @@ export const SubActivitiesModal: React.FC<SubActivitiesModalProps> = ({
                 </p>
               ) : (
                 relevantSubs.map((item) => {
-                  let priorityColor = 'bg-slate-100 text-slate-600';
+                  let priorityColor = 'bg-slate-50 text-slate-500 border-slate-150';
                   if (item.priority === 'High') {
-                    priorityColor = 'bg-rose-50 text-rose-700 border-rose-100';
+                    priorityColor = 'bg-rose-50 text-rose-700 border-rose-150';
+                  } else if (item.priority === 'Normal') {
+                    priorityColor = 'bg-emerald-50 text-emerald-700 border-emerald-150';
+                  } else if (item.priority === 'Low') {
+                    priorityColor = 'bg-amber-100 text-amber-700 border-amber-150';
                   }
 
                   let statusText = item.status;
-                  let statusBg = 'bg-slate-100 text-slate-700';
-                  if (item.status === 'Selesai') {
+                  let statusBg = 'bg-slate-50 text-slate-500 border-slate-150';
+                  if (item.status === 'Belum Mulai') {
+                    statusBg = 'bg-rose-50 text-rose-700 border-rose-150';
+                  } else if (item.status === 'Sedang Dikerjakan' || item.status === 'Sedang Berjalan') {
+                    statusBg = 'bg-amber-50 text-amber-700 border-amber-200';
+                  } else if (item.status === 'Selesai') {
                     statusBg = 'bg-emerald-50 text-emerald-800 border-emerald-100';
+                  } else if (item.status === 'Tertunda') {
+                    statusBg = 'bg-slate-100 text-slate-600 border-slate-200';
                   }
 
                   return (

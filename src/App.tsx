@@ -1983,7 +1983,21 @@ export default function App() {
                     setSelectedActivity(act);
                     setIsActivityModalOpen(true);
                   }}
+                  onOpenSubActivities={(activityId) => {
+                    setActiveParentActivityId(activityId);
+                    setIsSubActivitiesModalOpen(true);
+                  }}
+                  onDeleteActivityClick={(activityId) => {
+                    if (window.confirm("Apakah Anda yakin ingin menghapus rencana kegiatan ini beserta seluruh sub-aktivitasnya?")) {
+                      const updated = activities.filter(a => a.id !== activityId);
+                      updateActivitiesInStorage(updated);
+                    }
+                  }}
                   onSaveIndicatorValue={handleSaveIndicatorValueInline}
+                  onUpdateBudgetActual={(projId, amount) => {
+                    const updated = projects.map(p => p.id === projId ? { ...p, budgetActual: amount } : p);
+                    updateProjectsInStorage(updated);
+                  }}
                   onAddReflection={handleAddReflectionInline}
                   onDeleteReflection={handleDeleteReflectionInline}
                 />
