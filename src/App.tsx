@@ -1937,6 +1937,7 @@ export default function App() {
               indicators={indicators}
               onSelectProject={handleSelectProject}
               onAddProjectClick={() => setActiveTab('add_project')}
+              onOpenImportModal={() => setIsImportModalOpen(true)}
             />
           )}
 

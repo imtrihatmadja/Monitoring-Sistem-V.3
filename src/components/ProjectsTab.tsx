@@ -3,9 +3,10 @@ import { Project, Activity, Indicator } from '../types';
 import { 
   Search, FileDown, Plus, Edit, Archive, Eye, 
   CheckCircle2, TrendingUp, DollarSign, LayoutGrid, 
-  List, AlertCircle, Percent, Coins, Wallet 
+  List, AlertCircle, Percent, Coins, Wallet, FileSpreadsheet, Upload 
 } from 'lucide-react';
 import { ProjectImpactRow } from './ProjectImpactRow';
+import { downloadProjectTemplate, exportProjectsToExcel } from '../lib/excelHelpers';
 
 interface ProjectsTabProps {
   projects: Project[];
@@ -140,11 +141,29 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
           </div>
 
           <button
+            onClick={downloadProjectTemplate}
+            id="btn-download-template-proj"
+            className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
+            title="Unduh Template Excel untuk pembuatan Proyek Secara Massal (Bulk)"
+          >
+            <FileDown className="w-4 h-4 text-emerald-600" /> Template Excel
+          </button>
+
+          <button
             onClick={onOpenImportModal}
             id="btn-import-excel-proj"
             className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
           >
-            <FileDown className="w-4 h-4" /> Import Excel/CSV
+            <Upload className="w-4 h-4 text-blue-600" /> Import Proyek
+          </button>
+
+          <button
+            onClick={() => exportProjectsToExcel(projects, indicators)}
+            id="btn-export-excel-proj"
+            className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
+            title="Ekspor seluruh data Proyek dan Indikator ke format Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-purple-600" /> Export Proyek
           </button>
           
           <button

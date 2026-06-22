@@ -3,9 +3,10 @@ import { Project, Activity, Issue, Indicator } from '../types';
 import { 
   Folder, Play, AlertTriangle, CheckCircle, Percent, MapPin, 
   User, Calendar, Award, Sparkles, DollarSign, TrendingUp, 
-  ArrowUpRight, BarChart3, AlertCircle, ShieldAlert 
+  ArrowUpRight, BarChart3, AlertCircle, ShieldAlert, FileSpreadsheet, FileDown, Upload 
 } from 'lucide-react';
 import { ProjectImpactRow } from './ProjectImpactRow';
+import { downloadProjectTemplate, exportProjectsToExcel } from '../lib/excelHelpers';
 
 interface DashboardTabProps {
   projects: Project[];
@@ -14,6 +15,7 @@ interface DashboardTabProps {
   indicators: Indicator[];
   onSelectProject: (projectId: string) => void;
   onAddProjectClick: () => void;
+  onOpenImportModal: () => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
@@ -23,6 +25,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   indicators,
   onSelectProject,
   onAddProjectClick,
+  onOpenImportModal,
 }) => {
   // Budget Formatting Helper
   const formatRupiah = (value: number) => {
@@ -166,7 +169,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       </div>
 
       {/* Projects list header */}
-      <div id="dashboard-projects-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+      <div id="dashboard-projects-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Proyek Aktif DFW Indonesia
@@ -176,13 +179,41 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </h2>
           <p className="text-xs text-slate-500">Klik kartu proyek untuk rincian aktivitas dan update capaian indikator kerja</p>
         </div>
-        <button
-          onClick={onAddProjectClick}
-          id="btn-add-project-dash"
-          className="self-start sm:self-auto bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer h-9"
-        >
-          <span>＋</span> Tambah Proyek Baru
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={downloadProjectTemplate}
+            id="btn-download-template-dash"
+            className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
+            title="Unduh Template Excel untuk pembuatan Proyek Secara Massal (Bulk)"
+          >
+            <FileDown className="w-4 h-4 text-emerald-600" /> Template Excel
+          </button>
+
+          <button
+            onClick={onOpenImportModal}
+            id="btn-import-excel-dash"
+            className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
+          >
+            <Upload className="w-4 h-4 text-blue-600" /> Import Proyek
+          </button>
+
+          <button
+            onClick={() => exportProjectsToExcel(projects, indicators)}
+            id="btn-export-excel-dash"
+            className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer h-9"
+            title="Ekspor seluruh data Proyek dan Indikator ke format Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-purple-600" /> Export Proyek
+          </button>
+
+          <button
+            onClick={onAddProjectClick}
+            id="btn-add-project-dash"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2 px-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer h-9"
+          >
+            <span>＋</span> Tambah Proyek Baru
+          </button>
+        </div>
       </div>
 
       {/* Project Cards Grid */}
