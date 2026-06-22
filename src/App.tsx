@@ -1413,7 +1413,16 @@ export default function App() {
         ${hasOut ? `
           <div class="goal-box" style="background: #f5f3ff; border-color: #ddd6fe; margin-bottom: 0; border-radius: 10px;">
             <div class="goal-label" style="color: #6d28d9;">${L.outcomes}</div>
-            <ol class="outcome-ol">${projectOutcomes.map(o => `<li>${o.title}</li>`).join('')}</ol>
+            <ol class="outcome-ol">${[...projectOutcomes].sort((a, b) => {
+              const getNum = (title: string) => {
+                const match = title.match(/Outcome\s*(\d+)/i) || title.match(/(\d+)/);
+                return match ? parseInt(match[1], 10) : 999999;
+              };
+              const numA = getNum(a.title);
+              const numB = getNum(b.title);
+              if (numA !== numB) return numA - numB;
+              return a.id.localeCompare(b.id);
+            }).map(o => `<li>${o.title}</li>`).join('')}</ol>
           </div>
         ` : ''}
       </div>
@@ -2015,7 +2024,20 @@ export default function App() {
             <ProjectForm
               initialProject={activeTab === 'edit_project' ? projects.find((p) => p.id === selectedProjectId) : undefined}
               initialIndicators={activeTab === 'edit_project' ? indicators.filter((i) => i.projectId === selectedProjectId) : undefined}
-              initialOutcomes={activeTab === 'edit_project' ? outcomes.filter((o) => o.projectId === selectedProjectId) : undefined}
+              initialOutcomes={
+                activeTab === 'edit_project'
+                  ? [...outcomes.filter((o) => o.projectId === selectedProjectId)].sort((a, b) => {
+                      const getNum = (title: string) => {
+                        const match = title.match(/Outcome\s*(\d+)/i) || title.match(/(\d+)/);
+                        return match ? parseInt(match[1], 10) : 999999;
+                      };
+                      const numA = getNum(a.title);
+                      const numB = getNum(b.title);
+                      if (numA !== numB) return numA - numB;
+                      return a.id.localeCompare(b.id);
+                    })
+                  : undefined
+              }
               staffList={staffNamesList}
               onSubmit={handleSaveProjectWizard}
               onCancel={() => {
