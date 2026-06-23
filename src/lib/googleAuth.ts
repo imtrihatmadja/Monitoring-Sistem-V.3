@@ -2,9 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase App
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// Initialize Firebase App safely to prevent crash in sandboxed iframe environments
+let app: any = null;
+export let auth: any = null;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+} catch (e) {
+  console.warn('[GoogleAuth] Firebase failed to initialize (usually due to iframe sandbox restrictions):', e);
+}
 
 // Setup Google Auth Provider with Google Drive & Profile Scopes
 const provider = new GoogleAuthProvider();
@@ -20,6 +27,10 @@ export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    if (onAuthFailure) onAuthFailure();
+    return () => {};
+  }
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
@@ -37,6 +48,9 @@ export const initAuth = (
 
 // Initiate Google Popup Sign In Flow
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  if (!auth) {
+    throw new Error('Google Authentication service is unavailable in this environment.');
+  }
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);

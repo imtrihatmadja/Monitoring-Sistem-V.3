@@ -79,9 +79,17 @@ const FLAT_COL_MAP = {
   attended_date: ['tanggal', 'tanggal hadir', 'event date', 'date', 'attended_date', 'tanggal_hadir']
 };
 
-export const formatOccupation = (raw: string | undefined): string => {
-  if (!raw) return 'Tidak Diketahui';
-  const trimmed = raw.trim();
+export const formatOccupation = (raw: any): string => {
+  if (raw === null || raw === undefined) return 'Tidak Diketahui';
+  let str = '';
+  if (typeof raw === 'string') {
+    str = raw;
+  } else if (typeof raw.toString === 'function') {
+    str = raw.toString();
+  } else {
+    return 'Tidak Diketahui';
+  }
+  const trimmed = str.trim();
   if (!trimmed) return 'Tidak Diketahui';
   
   // Capitalize first letter of each word (Title Case)

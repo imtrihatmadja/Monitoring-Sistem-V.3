@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Project, Activity, Indicator } from '../types';
 import { 
-  Search, FileDown, Plus, Edit, Archive, Eye, 
+  Search, FileDown, Plus, Edit, Archive, Eye, Trash2,
   CheckCircle2, TrendingUp, DollarSign, LayoutGrid, 
   List, AlertCircle, Percent, Coins, Wallet, FileSpreadsheet, Upload 
 } from 'lucide-react';
@@ -15,6 +15,7 @@ interface ProjectsTabProps {
   onSelectProject: (projectId: string) => void;
   onEditProject: (projectId: string) => void;
   onArchiveProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
   onAddProjectClick: () => void;
   onOpenImportModal: () => void;
 }
@@ -26,6 +27,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
   onSelectProject,
   onEditProject,
   onArchiveProject,
+  onDeleteProject,
   onAddProjectClick,
   onOpenImportModal,
 }) => {
@@ -301,10 +303,17 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                             </button>
                             <button
                               onClick={() => onArchiveProject(p.id)}
-                              className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-rose-650 rounded-lg transition-all cursor-pointer"
+                              className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-rose-600 rounded-lg transition-all cursor-pointer"
                               title="Arsip Proyek"
                             >
                               <Archive className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteProject(p.id)}
+                              className="p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-rose-700 rounded-lg transition-all cursor-pointer"
+                              title="Hapus Proyek"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                             </button>
                           </div>
                         </td>
@@ -434,6 +443,13 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                         title="Arsip Proyek"
                       >
                         <Archive className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteProject(p.id)}
+                        className="p-1 px-2 bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-600 hover:text-rose-750 rounded-lg transition-all cursor-pointer"
+                        title="Hapus Proyek"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-500" />
                       </button>
                     </div>
                   </div>

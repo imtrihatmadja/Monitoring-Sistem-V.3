@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { getAccessToken, setAccessToken } from './googleAuth';
+import { safeStorage } from './safeStorage';
 
 /**
  * Service to handle uploading files to Google Drive using the REST API v3.
@@ -135,8 +136,8 @@ export async function getOrRefreshAccessToken(): Promise<string> {
     }
   }
 
-  // D. Fallback to localStorage caching
-  const localTok = localStorage.getItem('dfw_gdrive_access_token');
+  // D. Fallback to safeStorage caching
+  const localTok = safeStorage.getItem('dfw_gdrive_access_token');
   if (localTok) {
     memoryAccessToken = localTok;
     setAccessToken(memoryAccessToken);

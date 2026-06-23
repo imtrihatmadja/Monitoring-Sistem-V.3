@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured, supabaseUrl, supabaseAnonKey } from '../supabaseClient';
 import { Project, Indicator, Outcome, Activity, SubActivity, Beneficiary, Issue, Staff, ProjectReflection, ProjectDocument } from '../types';
+import { safeStorage } from './safeStorage';
 
 // Global caches for schema discovery with comprehensive static fallback definitions
 const fallbackSchemaColumns: Record<string, string[]> = {
@@ -64,9 +65,9 @@ for (const [table, cols] of Object.entries(fallbackSchemaUuidColumns)) {
 // Persistent string ID to UUID lookup table mapping the generated UUIDs back to client-friendly IDs
 let uuidToOriginalMap: Record<string, string> = {};
 
-// Load mapping from local storage to handle app refreshes gracefully
+// Load mapping from safe storage to handle app refreshes gracefully
 try {
-  const stored = localStorage.getItem('dfw_uuid_mappings');
+  const stored = safeStorage.getItem('dfw_uuid_mappings');
   if (stored) {
     uuidToOriginalMap = JSON.parse(stored);
   }
@@ -81,7 +82,7 @@ function registerIdMapping(uuid: string, original: string) {
   if (u && o && u !== o.toLowerCase()) {
     uuidToOriginalMap[u] = o;
     try {
-      localStorage.setItem('dfw_uuid_mappings', JSON.stringify(uuidToOriginalMap));
+      safeStorage.setItem('dfw_uuid_mappings', JSON.stringify(uuidToOriginalMap));
     } catch (e) {
       // Safe fallback
     }
@@ -152,10 +153,10 @@ function textToUuid(str: string): string {
   return generatedUuid;
 }
 
-// Pre-seed mapping cache from any existing localStorage items to guarantee seamless offline-to-online translations
+// Pre-seed mapping cache from any existing safeStorage items to guarantee seamless offline-to-online translations
 try {
   const seedLocalData = (key: string) => {
-    const raw = localStorage.getItem(key);
+    const raw = safeStorage.getItem(key);
     if (raw) {
       const items = JSON.parse(raw);
       if (Array.isArray(items)) {

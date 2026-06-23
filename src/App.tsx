@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Project, Activity, Indicator, Outcome, Beneficiary, Issue, Staff, SubActivity, ProjectReflection, ActivityFile, ProjectDocument } from './types';
+import { safeStorage as localStorage } from './lib/safeStorage';
 import {
   INITIAL_PROJECTS,
   INITIAL_INDICATORS,
@@ -25,6 +26,9 @@ import { StaffTab } from './components/StaffTab';
 import { ProjectForm } from './components/ProjectForm';
 import { ProjectDetailTab } from './components/ProjectDetailTab';
 import { DocumentsTab } from './components/DocumentsTab';
+
+// Import Confirm Modal
+import { ConfirmModal } from './components/ConfirmModal';
 
 // Import Modals Component
 import {
@@ -81,6 +85,22 @@ export default function App() {
   
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [docProjectFilter, setDocProjectFilter] = useState<string>('');
+
+  // Reusable custom confirm modal state to replace iframe-incompatible window.confirm
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'default' | 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Modals state
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -228,16 +248,26 @@ export default function App() {
       const storedReflections = localStorage.getItem('dfw_reflections');
       const storedDocuments = localStorage.getItem('dfw_documents');
 
-      setProjects(storedProjects ? JSON.parse(storedProjects) : INITIAL_PROJECTS);
-      setIndicators(storedIndicators ? JSON.parse(storedIndicators) : INITIAL_INDICATORS);
-      setOutcomes(storedOutcomes ? JSON.parse(storedOutcomes) : INITIAL_OUTCOMES);
-      setActivities(storedActivities ? JSON.parse(storedActivities) : INITIAL_ACTIVITIES);
-      setBeneficiaries(storedBeneficiaries ? JSON.parse(storedBeneficiaries) : INITIAL_BENEFICIARIES);
-      setIssues(storedIssues ? JSON.parse(storedIssues) : INITIAL_ISSUES);
-      setStaff(storedStaff ? JSON.parse(storedStaff) : INITIAL_STAFF);
-      setSubActivities(storedSubActivities ? JSON.parse(storedSubActivities) : []);
-      setReflections(storedReflections ? JSON.parse(storedReflections) : INITIAL_REFLECTIONS);
-      setDocuments(storedDocuments ? JSON.parse(storedDocuments) : INITIAL_DOCUMENTS);
+      const safeParse = <T,>(value: string | null, fallback: T): T => {
+        if (!value) return fallback;
+        try {
+          return JSON.parse(value) as T;
+        } catch (e) {
+          console.warn('Silent local storage parsing restoration active:', e);
+          return fallback;
+        }
+      };
+
+      setProjects(safeParse(storedProjects, INITIAL_PROJECTS));
+      setIndicators(safeParse(storedIndicators, INITIAL_INDICATORS));
+      setOutcomes(safeParse(storedOutcomes, INITIAL_OUTCOMES));
+      setActivities(safeParse(storedActivities, INITIAL_ACTIVITIES));
+      setBeneficiaries(safeParse(storedBeneficiaries, INITIAL_BENEFICIARIES));
+      setIssues(safeParse(storedIssues, INITIAL_ISSUES));
+      setStaff(safeParse(storedStaff, INITIAL_STAFF));
+      setSubActivities(safeParse(storedSubActivities, []));
+      setReflections(safeParse(storedReflections, INITIAL_REFLECTIONS));
+      setDocuments(safeParse(storedDocuments, INITIAL_DOCUMENTS));
     };
 
     if (isSupabaseConfigured) {
@@ -307,6 +337,8 @@ export default function App() {
           else if (table === 'project_sub_activities') setSubActivities(data);
           else if (table === 'project_reflections') setReflections(data);
           else if (table === 'project_documents') setDocuments(data);
+        }).catch((err) => {
+          console.warn(`Silent recovery of ${table} real-time sync failure:`, err);
         });
       };
 
@@ -712,12 +744,37 @@ export default function App() {
   };
 
   const handleArchiveProject = (id: string) => {
-    if (window.confirm('Apakah Anda yakin ingin mengarsipkan proyek ini?')) {
-      const updated = projects.map((p) => (p.id === id ? { ...p, isArchived: true, archoredBy: 'Imam Trihatmadja', archivedAt: new Date().toISOString().split('T')[0] } : p));
-      updateProjectsInStorage(updated);
-      setSyncToast('info');
-      setTimeout(() => setSyncToast(''), 3000);
-    }
+    setConfirmState({
+      isOpen: true,
+      title: 'Arsipkan Proyek',
+      message: 'Apakah Anda yakin ingin mengarsipkan proyek ini? Proyek yang diarsipkan dipindahkan ke tab Arsip dan dapat dipulihkan kembali kapan saja.',
+      type: 'info',
+      confirmText: 'Ya, Arsipkan',
+      onConfirm: () => {
+        const updated = projects.map((p) => (p.id === id ? { ...p, isArchived: true, archoredBy: 'Imam Trihatmadja', archivedAt: new Date().toISOString().split('T')[0] } : p));
+        updateProjectsInStorage(updated);
+        setSyncToast('info');
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setTimeout(() => setSyncToast(''), 3000);
+      }
+    });
+  };
+
+  const handleDeleteProject = (id: string) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Hapus Proyek',
+      message: 'Apakah Anda yakin ingin menghapus proyek ini secara permanen? Seluruh data proyek ini beserta relasinya akan dihapus dari sistem dan tidak dapat dikembalikan.',
+      type: 'danger',
+      confirmText: 'Ya, Hapus',
+      onConfirm: () => {
+        const updated = projects.filter((p) => p.id !== id);
+        updateProjectsInStorage(updated);
+        setSyncToast('success');
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setTimeout(() => setSyncToast(''), 3000);
+      }
+    });
   };
 
   const handleRestoreProject = (id: string) => {
@@ -1960,6 +2017,7 @@ export default function App() {
               onSelectProject={handleSelectProject}
               onEditProject={handleEditProjectClick}
               onArchiveProject={handleArchiveProject}
+              onDeleteProject={handleDeleteProject}
               onAddProjectClick={() => setActiveTab('add_project')}
               onOpenImportModal={() => setIsImportModalOpen(true)}
             />
@@ -1999,10 +2057,18 @@ export default function App() {
                     setIsSubActivitiesModalOpen(true);
                   }}
                   onDeleteActivityClick={(activityId) => {
-                    if (window.confirm("Apakah Anda yakin ingin menghapus rencana kegiatan ini beserta seluruh sub-aktivitasnya?")) {
-                      const updated = activities.filter(a => a.id !== activityId);
-                      updateActivitiesInStorage(updated);
-                    }
+                    setConfirmState({
+                      isOpen: true,
+                      title: 'Hapus Rencana Kegiatan',
+                      message: 'Apakah Anda yakin ingin menghapus rencana kegiatan ini beserta seluruh sub-aktivitasnya? Tindakan ini tidak dapat dibatalkan.',
+                      type: 'danger',
+                      confirmText: 'Ya, Hapus Kegiatan',
+                      onConfirm: () => {
+                        const updated = activities.filter(a => a.id !== activityId);
+                        updateActivitiesInStorage(updated);
+                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                      }
+                    });
                   }}
                   onSaveIndicatorValue={handleSaveIndicatorValueInline}
                   onUpdateBudgetActual={(projId, amount) => {
@@ -2332,15 +2398,23 @@ export default function App() {
                 {dbIsConfigured && (
                   <button
                     onClick={() => {
-                      if (confirm('Apakah Anda yakin ingin memutus koneksi Supabase? Aplikasi akan beralih menggunakan Penyimpanan Lokal Offline.')) {
-                        reinitializeSupabase('', '');
-                        setDbIsConfigured(false);
-                        setDbUrl('');
-                        setDbKey('');
-                        setSyncToast('success');
-                        setSyncToastMsg('Koneksi diputus. Aplikasi kembali ke penyimpanan lokal.');
-                        setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 3000);
-                      }
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Putuskan Koneksi Supabase',
+                        message: 'Apakah Anda yakin ingin memutus koneksi Supabase? Aplikasi akan sepenuhnya beralih menggunakan Penyimpanan Lokal Offline.',
+                        type: 'warning',
+                        confirmText: 'Ya, Putuskan Koneksi',
+                        onConfirm: () => {
+                          reinitializeSupabase('', '');
+                          setDbIsConfigured(false);
+                          setDbUrl('');
+                          setDbKey('');
+                          setSyncToast('success');
+                          setSyncToastMsg('Koneksi diputus. Aplikasi kembali ke penyimpanan lokal.');
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          setTimeout(() => { setSyncToast(''); setSyncToastMsg(''); }, 3000);
+                        }
+                      });
                     }}
                     className="sm:w-auto bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all"
                   >
@@ -2427,10 +2501,18 @@ export default function App() {
                     </button>
 
                     <button
-                      onClick={async () => {
-                        if (confirm('Langkah ini akan MENIMPA seluruh data lokal yang ada saat ini dengan salinan dari Supabase Cloud. Lanjutkan?')) {
-                          await fetchAndSyncFromSupabase();
-                        }
+                      onClick={() => {
+                        setConfirmState({
+                          isOpen: true,
+                          title: 'Unduh & Timpa Data dari Supabase',
+                          message: 'Langkah ini akan sepenuhnya MENIMPA seluruh data lokal yang ada saat ini dengan salinan terbaru dari Supabase Cloud. Apakah Anda yakin ingin melanjutkan?',
+                          type: 'warning',
+                          confirmText: 'Ya, Timpa Data Lokal',
+                          onConfirm: async () => {
+                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                            await fetchAndSyncFromSupabase();
+                          }
+                        });
                       }}
                       className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 px-3 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
                     >
@@ -2907,6 +2989,17 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
           setIsStaffTasksModalOpen(false);
           setSelectedStaffTasksName('');
         }}
+      />
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
