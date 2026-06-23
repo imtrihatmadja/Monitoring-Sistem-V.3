@@ -84,6 +84,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
   // State to track active resolved Google Drive token
   const [gdriveStatus, setGdriveStatus] = useState<'resolved' | 'checking' | 'unconfigured'>('checking');
   const [gdriveActiveEmail, setGdriveActiveEmail] = useState<string>('imam.trihatmadja@dfw.or.id');
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Load and check the Google Drive Permanent Connection on component mount
   useEffect(() => {
@@ -107,8 +108,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
             if (userData.email) {
               setGdriveActiveEmail(userData.email);
             }
+            setGdriveStatus('resolved');
+          } else {
+            setGdriveStatus('unconfigured');
           }
-          setGdriveStatus('resolved');
         } else {
           setGdriveStatus('unconfigured');
         }
@@ -120,6 +123,31 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
 
     checkActiveConnection();
   }, [documents]);
+
+  const handleReconnectGDrive = async () => {
+    setIsReconnecting(true);
+    setUploadError(null);
+    try {
+      const authResult = await googleSignIn();
+      if (!authResult) {
+        throw new Error('Proses tautkan akun dibatalkan.');
+      }
+      const email = authResult.user.email || 'imam.trihatmadja@dfw.or.id';
+      const successSaved = await saveSharedTokenToSupabase(authResult.accessToken, email);
+      if (successSaved) {
+        setGdriveStatus('resolved');
+        setGdriveActiveEmail(email);
+        alert(`Berhasil memperbarui koneksi ke Google Drive (${email})! Silakan klik tombol "Unggah Sekarang" kembali.`);
+      } else {
+        throw new Error('Gagal menyimpan kredensial baru ke database.');
+      }
+    } catch (err: any) {
+      console.error('Reconnect error:', err);
+      setUploadError(`Gagal menautkan ulang Google Drive: ${err.message || err}`);
+    } finally {
+      setIsReconnecting(false);
+    }
+  };
 
   const handleTitleBadgeClick = () => {
     const nextCount = clickCount + 1;
@@ -677,6 +705,38 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({
                               <li>Di halaman konsol tersebut, klik tombol <strong>"Enable" (Aktifkan)</strong>.</li>
                               <li>Tunggu sekitar 1-2 menit, lalu silakan dicoba klik tombol <strong>"Unggah Sekarang"</strong> kembali!</li>
                             </ol>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const isAuthError =
+                      uploadError.includes("401") ||
+                      uploadError.toLowerCase().includes("credentials") ||
+                      uploadError.toLowerCase().includes("unauthenticated") ||
+                      uploadError.toLowerCase().includes("kedaluwarsa") ||
+                      uploadError.toLowerCase().includes("expired");
+
+                    if (isAuthError) {
+                      return (
+                        <div className="space-y-2 mt-1">
+                          <p className="leading-relaxed text-rose-750">
+                            <strong>Penyebab:</strong> Koneksi/Token Google Drive Anda telah kedaluwarsa atau tidak valid.
+                          </p>
+                          <div className="bg-white/80 border border-slate-200 p-3 rounded-lg space-y-2 text-slate-700">
+                            <span className="font-bold block text-[10px] text-slate-700">SOLUSI SECEPATNYA:</span>
+                            <p className="text-slate-550 text-[10px] leading-relaxed">
+                              Silakan klik tombol di bawah ini untuk menautkan &amp; menyinkronkan kembali akun Google Drive Anda guna memperbarui kredensial secara aman.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleReconnectGDrive}
+                              disabled={isReconnecting}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10.5px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <CloudUpload className="w-4 h-4" /> 
+                              {isReconnecting ? "Menyinkronkan Akun..." : "Tautkan Ulang Google Drive 🔗"}
+                            </button>
                           </div>
                         </div>
                       );

@@ -117,12 +117,14 @@ export async function getOrRefreshAccessToken(): Promise<string> {
                 }
               }
             } else {
-              memoryAccessToken = configObj.accessToken;
-              setAccessToken(memoryAccessToken);
-              return memoryAccessToken;
+              // Token has expired and cannot be refreshed automatically (no client credentials / refresh token)
+              throw new Error(`Koneksi Google Drive terdaftar (${configObj.email || 'tanpa nama'}) telah kedaluwarsa (expired). Silakan tautkan ulang akun di panel pengaturan.`);
             }
           }
-        } catch (e) {
+        } catch (e: any) {
+          if (e.message && e.message.includes("kedaluwarsa")) {
+            throw e;
+          }
           memoryAccessToken = data.description;
           setAccessToken(memoryAccessToken);
           return memoryAccessToken;
