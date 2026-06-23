@@ -38,6 +38,7 @@ interface BeneficiaryTabProps {
   projects: Project[];
   activities: Activity[];
   onUpdateBeneficiaries: (newList: Beneficiary[]) => void;
+  onUpdateProjects?: (newList: Project[]) => void;
   onOpenAddModal: () => void;
   onOpenEditModal: (ben: Beneficiary) => void;
   onOpenDetailModal: (ben: Beneficiary) => void;
@@ -56,19 +57,39 @@ const CHART_COLORS = [
   '#14b8a6'  // Teal-600
 ];
 
-// Flat column mapping case-insensitive aliases for Excel Imports
+// Robust flat column mapping case-insensitive aliases for Excel Imports
 const FLAT_COL_MAP = {
-  project_name: ['project', 'proyek', 'nama proyek', 'project name', 'nama_proyek', 'project_name'],
-  activity_name: ['aktivitas', 'kegiatan', 'activity', 'nama kegiatan', 'event', 'nama_kegiatan', 'activity_name'],
-  name: ['name', 'nama', 'nama lengkap', 'full name', 'nama_lengkap', 'full_name'],
-  phone: ['handphone', 'hp', 'no hp', 'no_hp', 'telepon', 'phone', 'nomor_hp'],
+  project_name: [
+    'project', 'proyek', 'nama proyek', 'project name', 'nama_proyek', 'project_name', 
+    'proyek pembinaan terikat', 'target proyek / program', 'target proyek', 'program', 
+    'proyek_pembinaan_terikat', 'target_proyek_program'
+  ],
+  activity_name: [
+    'aktivitas', 'kegiatan', 'activity', 'nama kegiatan', 'event', 'nama_kegiatan', 'activity_name',
+    'kegiatan diikuti', 'kegiatan_diikuti'
+  ],
+  name: ['name', 'nama', 'nama lengkap', 'full name', 'nama_lengkap', 'full_name', 'nama*'],
+  phone: ['handphone', 'hp', 'no hp', 'no_hp', 'telepon', 'phone', 'nomor_hp', 'no hp/kontak', 'kontak'],
   gender: ['jenis kelamin', 'gender', 'kelamin', 'jenis_kelamin', 'sex'],
-  location: ['asal', 'lokasi', 'desa', 'alamat', 'location', 'domisili', 'kecamatan', 'asal/lokasi'],
-  occupation: ['pekerjaan', 'occupation', 'profesi', 'job'],
-  birthyear: ['tahun lahir', 'birth_year', 'thn_lahir', 'tahun_lahir', 'lahir', 'tahun_lahir'],
-  email: ['email', 'e_mail', 'surel'],
-  note: ['catatan', 'note', 'keterangan'],
+  location: ['asal', 'lokasi', 'desa', 'alamat', 'location', 'domisili', 'kecamatan', 'asal/lokasi', 'asal wilayah/lokasi', 'asal_wilayah_lokasi'],
+  occupation: ['pekerjaan', 'occupation', 'profesi', 'job', 'pekerjaan utama', 'pekerjaan_utama', 'pekerjaan_utama_penerima'],
+  birthyear: ['tahun lahir', 'birth_year', 'thn_lahir', 'tahun_lahir', 'lahir', 'tahun_lahir', 'estimasi usia', 'usia'],
+  email: ['email', 'e_mail', 'surel', 'alamat email', 'alamat_email'],
+  note: ['catatan', 'note', 'keterangan', 'keterangan catatan', 'catatan tambahan', 'keterangan_catatan'],
   attended_date: ['tanggal', 'tanggal hadir', 'event date', 'date', 'attended_date', 'tanggal_hadir']
+};
+
+export const formatOccupation = (raw: string | undefined): string => {
+  if (!raw) return 'Tidak Diketahui';
+  const trimmed = raw.trim();
+  if (!trimmed) return 'Tidak Diketahui';
+  
+  // Capitalize first letter of each word (Title Case)
+  return trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 };
 
 export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
@@ -76,6 +97,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
   projects,
   activities,
   onUpdateBeneficiaries,
+  onUpdateProjects,
   onOpenAddModal,
   onOpenEditModal,
   onOpenDetailModal,
@@ -241,7 +263,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
     const occupationCounts: Record<string, { name: string; value: number; 'Laki-laki': number; 'Perempuan': number }> = {};
     
     filteredBeneficiaries.forEach((b) => {
-      const occName = b.occupation?.trim() || 'Tidak Diketahui';
+      const occName = formatOccupation(b.occupation);
       if (!occupationCounts[occName]) {
         occupationCounts[occName] = { name: occName, value: 0, 'Laki-laki': 0, 'Perempuan': 0 };
       }
@@ -353,7 +375,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
           b.birthyear || '',
           b.birthyear ? (new Date().getFullYear() - b.birthyear) : '',
           b.location || '',
-          b.occupation || '',
+          formatOccupation(b.occupation),
           b.email || '',
           b.registrations.length,
           uniqueProjs || 'Tidak Terikat',
@@ -385,7 +407,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
             b.name,
             b.phone || '',
             pObj ? pObj.name : 'Program Umum DFW',
-            b.occupation || '',
+            formatOccupation(b.occupation),
             actNameStr,
             reg.attendedDate || '—',
             reg.isFreeLog ? 'Log Bebas' : 'Partisipasi Sistem',
@@ -420,7 +442,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
       // Add occupation statistics to sheet
       const occCountsMap: Record<string, number> = {};
       filteredBeneficiaries.forEach(b => {
-        const o = b.occupation || 'Tidak Diketahui';
+        const o = formatOccupation(b.occupation);
         occCountsMap[o] = (occCountsMap[o] || 0) + 1;
       });
 
@@ -530,6 +552,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
         let logBebasCount = 0;
 
         let workingList = [...beneficiaries];
+        let currentProjects = [...projects];
 
         stagedRows.forEach((row) => {
           const normalizedInput = {
@@ -538,7 +561,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
             gender: normGender(row.gender),
             birthyear: parseInt(row.birthyear, 10) || undefined,
             location: row.location ? String(row.location).trim() : undefined,
-            occupation: row.occupation ? String(row.occupation).trim() : undefined,
+            occupation: row.occupation ? formatOccupation(row.occupation) : undefined,
             email: row.email ? String(row.email).trim() : undefined,
             note: row.note ? String(row.note).trim() : undefined
           };
@@ -584,9 +607,43 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
           // Register project and activity if provided
           if (row.project_name && targetBenId) {
-            const rowProjNameLower = String(row.project_name).toLowerCase().trim();
-            const matchedProjObj = projects.find(p => p.name.toLowerCase().trim() === rowProjNameLower);
-            const resolvedProjectId = matchedProjObj ? matchedProjObj.id : `p-gen-${Date.now()}`;
+            const rowProjName = String(row.project_name).trim();
+            const rowProjNameLower = rowProjName.toLowerCase();
+
+            // Find matching project
+            // 1. Exact match (case insensitive)
+            let matchedProjObj = currentProjects.find(p => p.name.toLowerCase().trim() === rowProjNameLower);
+
+            // 2. Loose Substring match
+            if (!matchedProjObj) {
+              matchedProjObj = currentProjects.find(p => {
+                const nameLower = p.name.toLowerCase().trim();
+                return nameLower.includes(rowProjNameLower) || rowProjNameLower.includes(nameLower);
+              });
+            }
+
+            let resolvedProjectId = '';
+
+            if (matchedProjObj) {
+              resolvedProjectId = matchedProjObj.id;
+            } else {
+              // Create new project automatically so the imported data fits in perfectly!
+              const newProjId = `p-auto-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              const newProj: Project = {
+                id: newProjId,
+                name: rowProjName,
+                location: 'Lokasi Diimpor',
+                owner: 'Sistem Terintegrasi',
+                status: 'Aktif',
+                progress: 0,
+                budgetApproved: 0,
+                budgetActual: 0,
+                isArchived: false,
+                desc: 'Proyek ini otomatis dibuat saat melakukan import data penerima manfaat.'
+              };
+              currentProjects.push(newProj);
+              resolvedProjectId = newProjId;
+            }
 
             // Check activity match
             let matchedActivityId: string | undefined = undefined;
@@ -641,7 +698,12 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
           }
         });
 
-        // Save
+        // Save projects if any were automatically created
+        if (onUpdateProjects && currentProjects.length > projects.length) {
+          onUpdateProjects(currentProjects);
+        }
+
+        // Save beneficiaries
         onUpdateBeneficiaries(workingList);
         setIsImportingProgress(false);
         setStagedRows(null);

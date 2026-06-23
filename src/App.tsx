@@ -2053,6 +2053,7 @@ export default function App() {
               projects={projects}
               activities={activities}
               onUpdateBeneficiaries={updateBeneficiariesInStorage}
+              onUpdateProjects={updateProjectsInStorage}
               onOpenAddModal={() => {
                 setSelectedBen(undefined);
                 setIsBenModalOpen(true);
