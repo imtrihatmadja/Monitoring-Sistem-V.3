@@ -135,6 +135,18 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
   const activeProjects = projects.filter(p => !p.isArchived);
 
+  // Calculate count of unique beneficiaries registered to a specific project
+  const getBeneficiaryCountForProject = (projId: string) => {
+    return beneficiaries.filter((b) => 
+      b.registrations.some((r) => {
+        if (!r.projectId) return false;
+        return r.projectId === projId || 
+               SupabaseSync.getOriginalId(r.projectId) === projId || 
+               SupabaseSync.getUuid(r.projectId) === SupabaseSync.getUuid(projId);
+      })
+    ).length;
+  };
+
   // Compute activities available for dropdown based on active project selection
   const availableActivitiesForFilter = useMemo(() => {
     const activeProj = selectedProjectId || toolbarProjectFilter;
@@ -822,11 +834,14 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
           className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl border-none focus:outline-none transition-all cursor-pointer min-w-[200px]"
         >
           <option value="" className="text-slate-800 bg-white font-medium">✨ Semua Proyek</option>
-          {activeProjects.map((p) => (
-            <option key={p.id} value={p.id} className="text-slate-800 bg-white font-medium">
-              {p.name}
-            </option>
-          ))}
+          {activeProjects.map((p) => {
+            const count = getBeneficiaryCountForProject(p.id);
+            return (
+              <option key={p.id} value={p.id} className="text-slate-800 bg-white font-medium">
+                {p.name} ({count} data)
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -897,11 +912,14 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer h-[34px] max-w-[280px]"
             >
               <option value="">Semua Proyek Pembinaan</option>
-              {activeProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+              {activeProjects.map((p) => {
+                const count = getBeneficiaryCountForProject(p.id);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({count} data)
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

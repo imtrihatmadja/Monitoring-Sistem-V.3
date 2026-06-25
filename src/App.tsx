@@ -275,24 +275,85 @@ export default function App() {
       SupabaseSync.fetchSchemaInfo().then(() => {
         SupabaseSync.fetchAllData().then((data) => {
           if (data) {
-            setProjects(data.projects);
-            setIndicators(data.indicators);
-            setOutcomes(data.outcomes);
-            setActivities(data.activities);
-            setBeneficiaries(data.beneficiaries);
-            setIssues(data.issues);
-            
-            // Seed INITIAL_STAFF if empty
-            if (data.staff.length === 0 && INITIAL_STAFF.length > 0) {
-              setStaff(INITIAL_STAFF);
-              INITIAL_STAFF.forEach(member => SupabaseSync.saveStaff(member));
+            const safeParse = <T,>(value: string | null, fallback: T): T => {
+              if (!value) return fallback;
+              try { return JSON.parse(value) as T; } catch { return fallback; }
+            };
+
+            if (data.projects !== undefined) {
+              setProjects(data.projects);
+              localStorage.setItem('dfw_projects', JSON.stringify(data.projects));
             } else {
-              setStaff(data.staff);
+              setProjects(safeParse(localStorage.getItem('dfw_projects'), INITIAL_PROJECTS));
             }
-            
-            setSubActivities(data.subActivities);
-            setReflections(data.reflections);
-            setDocuments(data.documents);
+
+            if (data.indicators !== undefined) {
+              setIndicators(data.indicators);
+              localStorage.setItem('dfw_indicators', JSON.stringify(data.indicators));
+            } else {
+              setIndicators(safeParse(localStorage.getItem('dfw_indicators'), INITIAL_INDICATORS));
+            }
+
+            if (data.outcomes !== undefined) {
+              setOutcomes(data.outcomes);
+              localStorage.setItem('dfw_outcomes', JSON.stringify(data.outcomes));
+            } else {
+              setOutcomes(safeParse(localStorage.getItem('dfw_outcomes'), INITIAL_OUTCOMES));
+            }
+
+            if (data.activities !== undefined) {
+              setActivities(data.activities);
+              localStorage.setItem('dfw_activities', JSON.stringify(data.activities));
+            } else {
+              setActivities(safeParse(localStorage.getItem('dfw_activities'), INITIAL_ACTIVITIES));
+            }
+
+            if (data.beneficiaries !== undefined) {
+              setBeneficiaries(data.beneficiaries);
+              localStorage.setItem('dfw_beneficiaries', JSON.stringify(data.beneficiaries));
+            } else {
+              setBeneficiaries(safeParse(localStorage.getItem('dfw_beneficiaries'), INITIAL_BENEFICIARIES));
+            }
+
+            if (data.issues !== undefined) {
+              setIssues(data.issues);
+              localStorage.setItem('dfw_issues', JSON.stringify(data.issues));
+            } else {
+              setIssues(safeParse(localStorage.getItem('dfw_issues'), INITIAL_ISSUES));
+            }
+
+            if (data.staff !== undefined) {
+              if (data.staff.length === 0 && INITIAL_STAFF.length > 0) {
+                setStaff(INITIAL_STAFF);
+                INITIAL_STAFF.forEach(member => SupabaseSync.saveStaff(member));
+              } else {
+                setStaff(data.staff);
+              }
+              localStorage.setItem('dfw_staff', JSON.stringify(data.staff));
+            } else {
+              setStaff(safeParse(localStorage.getItem('dfw_staff'), INITIAL_STAFF));
+            }
+
+            if (data.subActivities !== undefined) {
+              setSubActivities(data.subActivities);
+              localStorage.setItem('dfw_sub_activities', JSON.stringify(data.subActivities));
+            } else {
+              setSubActivities(safeParse(localStorage.getItem('dfw_sub_activities'), []));
+            }
+
+            if (data.reflections !== undefined) {
+              setReflections(data.reflections);
+              localStorage.setItem('dfw_reflections', JSON.stringify(data.reflections));
+            } else {
+              setReflections(safeParse(localStorage.getItem('dfw_reflections'), INITIAL_REFLECTIONS));
+            }
+
+            if (data.documents !== undefined) {
+              setDocuments(data.documents);
+              localStorage.removeItem('dfw_documents');
+            } else {
+              setDocuments(safeParse(localStorage.getItem('dfw_documents'), INITIAL_DOCUMENTS));
+            }
           } else {
             console.warn('Supabase fetch returned null, falling back to localStorage');
             loadLocalFallback();

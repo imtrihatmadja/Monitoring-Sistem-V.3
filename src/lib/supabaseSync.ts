@@ -319,6 +319,12 @@ function fromDbRow<T>(row: any): T {
     result.name = result.fullName;
   }
 
+  if (row.birth_year !== undefined) {
+    result.birthyear = row.birth_year ? Number(row.birth_year) : undefined;
+  } else if (result.birthYear !== undefined) {
+    result.birthyear = result.birthYear ? Number(result.birthYear) : undefined;
+  }
+
   return result as T;
 }
 
@@ -651,7 +657,7 @@ export const SupabaseSync = {
 
               const res = await query;
               if (res.error) {
-                return { data: [], error: res.error };
+                return { data: undefined, error: res.error };
               }
 
               const chunk = res.data || [];
@@ -704,12 +710,12 @@ export const SupabaseSync = {
           const res = await query;
           if (res.error) {
             // Demote table errors (like missing 404 target tables) to quiet status handlers
-            return { data: [], error: res.error };
+            return { data: undefined, error: res.error };
           }
           harvestColumns(table, res.data || []);
           return res;
         } catch (err: any) {
-          return { data: [], error: err };
+          return { data: undefined, error: err };
         }
       };
 
