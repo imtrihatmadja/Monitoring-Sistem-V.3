@@ -2820,6 +2820,8 @@ ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;
 
 -- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT
 ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS notes_updated_at TEXT;
 ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
 ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS date_occurred TEXT;
@@ -3002,6 +3004,8 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
 
                         <span className="text-amber-400">-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT</span>{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> notes TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> notes_updated_at TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> full_name TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> date_occurred TEXT;{"\n"}
