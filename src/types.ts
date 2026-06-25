@@ -80,10 +80,12 @@ export interface Activity {
 export interface BeneficiaryRegistration {
   projectId: string;
   activityId?: string;
+  subActivityId?: string;
   attendedDate?: string;
   note?: string;
   isFreeLog?: boolean;
   activityName?: string;
+  subActivityName?: string;
   source?: string;
 }
 

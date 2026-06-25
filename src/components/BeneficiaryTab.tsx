@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Beneficiary, Project, Activity, BeneficiaryRegistration } from '../types';
+import { Beneficiary, Project, Activity, BeneficiaryRegistration, SubActivity } from '../types';
 import { SupabaseSync } from '../lib/supabaseSync';
 import { safeStorage } from '../lib/safeStorage';
 import {
@@ -39,9 +39,11 @@ interface BeneficiaryTabProps {
   beneficiaries: Beneficiary[];
   projects: Project[];
   activities: Activity[];
+  subActivities?: SubActivity[];
   onUpdateBeneficiaries: (newList: Beneficiary[]) => void;
   onUpdateProjects?: (newList: Project[]) => void;
   onUpdateActivities?: (newList: Activity[]) => void;
+  onUpdateSubActivities?: (newList: SubActivity[]) => void;
   onOpenAddModal: (defaultProjId?: string) => void;
   onOpenEditModal: (ben: Beneficiary) => void;
   onOpenDetailModal: (ben: Beneficiary) => void;
@@ -70,6 +72,9 @@ const FLAT_COL_MAP = {
   activity_name: [
     'aktivitas', 'kegiatan', 'activity', 'nama kegiatan', 'event', 'nama_kegiatan', 'activity_name',
     'kegiatan diikuti', 'kegiatan_diikuti'
+  ],
+  sub_activity_name: [
+    'sub aktivitas', 'sub-aktivitas', 'sub kegiatan', 'sub_kegiatan', 'sub kegiatan diikuti', 'sub-kegiatan', 'subactivity', 'sub_activity', 'sub activity name', 'sub_activity_name'
   ],
   name: ['name', 'nama', 'nama lengkap', 'full name', 'nama_lengkap', 'full_name', 'nama*'],
   phone: ['handphone', 'hp', 'no hp', 'no_hp', 'telepon', 'phone', 'nomor_hp', 'no hp/kontak', 'kontak'],
@@ -107,9 +112,11 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
   beneficiaries,
   projects,
   activities,
+  subActivities,
   onUpdateBeneficiaries,
   onUpdateProjects,
   onUpdateActivities,
+  onUpdateSubActivities,
   onOpenAddModal,
   onOpenEditModal,
   onOpenDetailModal,
@@ -387,21 +394,21 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
       const wb = XLSX.utils.book_new();
       
       const headers = [
-        'Project', 'Aktivitas', 'Nama*', 'Jenis Kelamin',
+        'Project', 'Aktivitas', 'Sub-Aktivitas', 'Nama*', 'Jenis Kelamin',
         'Asal', 'Handphone', 'Pekerjaan', 'Tahun Lahir', 'Tanggal Hadir', 'Catatan'
       ];
       
       const sampleData = [
-        ['USAID Oceans — Perlindungan Hak Asasi', 'Pelatihan Hak Ketenagakerjaan Nelayan', 'Ahmad Fauzi', 'Laki-laki', 'Kepulauan Aru / Dobo', '081234567890', 'Nelayan Tangkap', '1985', '2026-03-15', 'Ketua paguyuban nelayan dilingkungan Dobo'],
-        ['Enabling Environment - DFW Indonesia', 'Sosialisasi Perlindungan KP', 'Siti Rahma', 'Perempuan', 'Sulawesi Utara / Manado', '082345678901', 'Pengolah Hasil Laut', '1990', '2026-03-15', 'Butuh e-logbook panduan tertulis'],
-        ['USAID Oceans — Perlindungan Hak Asasi', 'Consultation Workshop C188', 'Yohanis Maru', 'Laki-laki', 'Wamar / Dobo', '085299887711', 'Anak Buah Kapal', '1988', '2026-04-10', 'Hadir tepat waktu dan membawa berkas kartu keluarga']
+        ['USAID Oceans — Perlindungan Hak Asasi', 'Pelatihan Hak Ketenagakerjaan Nelayan', 'Sesi Teori Hak Pekerja', 'Ahmad Fauzi', 'Laki-laki', 'Kepulauan Aru / Dobo', '081234567890', 'Nelayan Tangkap', '1985', '2026-03-15', 'Ketua paguyuban nelayan dilingkungan Dobo'],
+        ['Enabling Environment - DFW Indonesia', 'Sosialisasi Perlindungan KP', 'Pembagian Buku Panduan', 'Siti Rahma', 'Perempuan', 'Sulawesi Utara / Manado', '082345678901', 'Pengolah Hasil Laut', '1990', '2026-03-15', 'Butuh e-logbook panduan tertulis'],
+        ['USAID Oceans — Perlindungan Hak Asasi', 'Consultation Workshop C188', 'Focus Group Discussion', 'Yohanis Maru', 'Laki-laki', 'Wamar / Dobo', '085299887711', 'Anak Buah Kapal', '1988', '2026-04-10', 'Hadir tepat waktu dan membawa berkas kartu keluarga']
       ];
 
       const wsData = [headers, ...sampleData];
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       
       // Auto column widths
-      ws['!cols'] = [30, 30, 25, 15, 25, 15, 18, 12, 14, 25].map(w => ({ wch: w }));
+      ws['!cols'] = [30, 30, 25, 25, 15, 25, 15, 18, 12, 14, 25].map(w => ({ wch: w }));
       
       // Freezing first row
       ws['!freeze'] = { xSplit: 0, ySplit: 1 };
@@ -456,7 +463,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
       XLSX.utils.book_append_sheet(wb, ws1, 'Penerima Manfaat');
 
       // Sheet 2: Riwayat Kegiatan Flat
-      const headers2 = ['No', 'Nama Penerima', 'No HP/Kontak', 'Target Proyek / Program', 'Pekerjaan', 'Kegiatan Diikuti', 'Tanggal Kehadiran', 'Kategori Kehadiran', 'Catatan Tambahan'];
+      const headers2 = ['No', 'Nama Penerima', 'No HP/Kontak', 'Target Proyek / Program', 'Pekerjaan', 'Kegiatan Diikuti', 'Sub-Aktivitas', 'Tanggal Kehadiran', 'Kategori Kehadiran', 'Catatan Tambahan'];
       const rows2: any[] = [];
       let no2 = 1;
 
@@ -470,6 +477,8 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
             actNameStr = actObj.title;
           }
 
+          let subActNameStr = reg.subActivityName || '—';
+
           rows2.push([
             no2++,
             b.name,
@@ -477,6 +486,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
             pObj ? pObj.name : 'Program Umum DFW',
             formatOccupation(b.occupation),
             actNameStr,
+            subActNameStr,
             reg.attendedDate || '—',
             reg.isFreeLog ? 'Log Bebas' : 'Partisipasi Sistem',
             reg.note || ''
@@ -486,7 +496,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
       if (rows2.length > 0) {
         const ws2 = XLSX.utils.aoa_to_sheet([headers2, ...rows2]);
-        ws2['!cols'] = [5, 25, 16, 35, 18, 35, 15, 18, 25].map(w => ({ wch: w }));
+        ws2['!cols'] = [5, 25, 16, 35, 18, 35, 25, 15, 18, 25].map(w => ({ wch: w }));
         XLSX.utils.book_append_sheet(wb, ws2, 'Riwayat Kegiatan');
       }
 
@@ -622,6 +632,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
         let workingList = [...beneficiaries];
         let currentProjects = [...projects];
         let currentActivities = [...activities];
+        let currentSubActivities = subActivities ? [...subActivities] : [];
 
         stagedRows.forEach((row) => {
           const normalizedInput = {
@@ -751,14 +762,48 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
               }
             }
 
+            // Check sub-activity match and auto-create if provided
+            let matchedSubActivityId: string | undefined = undefined;
+            let finalSubActivityName = row.sub_activity_name ? String(row.sub_activity_name).trim() : undefined;
+
+            if (finalSubActivityName && matchedActivityId) {
+              const rowSubActLower = finalSubActivityName.toLowerCase().trim();
+              const matchedSubActObj = currentSubActivities.find(s => 
+                s.parentActivityId === matchedActivityId && 
+                s.title.toLowerCase().trim() === rowSubActLower
+              );
+
+              if (matchedSubActObj) {
+                matchedSubActivityId = matchedSubActObj.id;
+                finalSubActivityName = matchedSubActObj.title;
+              } else {
+                // Auto-create missing sub-activity under matchedActivityId
+                const newSubId = `sub-auto-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                const newSub: SubActivity = {
+                  id: newSubId,
+                  parentActivityId: matchedActivityId,
+                  title: finalSubActivityName,
+                  desc: 'Sub-aktivitas ini otomatis dibuat saat melakukan import data penerima manfaat.',
+                  pic: 'Sistem Terintegrasi',
+                  status: 'Sedang Dikerjakan',
+                  priority: 'Normal'
+                };
+                currentSubActivities.push(newSub);
+                matchedSubActivityId = newSubId;
+                finalSubActivityName = newSub.title;
+              }
+            }
+
             // Create registration object
             const regObj: BeneficiaryRegistration = {
               projectId: resolvedProjectId,
               activityId: matchedActivityId,
+              subActivityId: matchedSubActivityId,
               attendedDate: parseDate(row.attended_date) || new Date().toISOString().split('T')[0],
               note: row.note ? String(row.note).trim() : 'Diimport via dokumen Excel',
               isFreeLog: isFreeLog,
               activityName: finalActivityName,
+              subActivityName: finalSubActivityName,
               source: 'import'
             };
 
@@ -768,7 +813,10 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                 const alreadyRegistered = b.registrations.some(r => 
                   r.projectId === regObj.projectId && 
                   ((r.activityId && r.activityId === regObj.activityId) || 
-                   (r.activityName && r.activityName === regObj.activityName))
+                   (r.activityName && r.activityName === regObj.activityName)) &&
+                  ((!regObj.subActivityId && !r.subActivityId) || 
+                   (r.subActivityId && r.subActivityId === regObj.subActivityId) ||
+                   (r.subActivityName && r.subActivityName === regObj.subActivityName))
                 );
                 if (alreadyRegistered) return b;
                 return {
@@ -789,6 +837,11 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
         // Save activities if any were automatically created
         if (onUpdateActivities && currentActivities.length > activities.length) {
           onUpdateActivities(currentActivities);
+        }
+
+        // Save sub-activities if any were automatically created
+        if (onUpdateSubActivities && currentSubActivities.length > (subActivities?.length || 0)) {
+          onUpdateSubActivities(currentSubActivities);
         }
 
         // Save beneficiaries
@@ -1177,6 +1230,11 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                           <span className="text-[10px] text-slate-500 truncate block font-medium" title={registeredActivityName}>
                             {currentReg?.isFreeLog ? '📝 ' : '🎯 '}{registeredActivityName}
                           </span>
+                          {currentReg?.subActivityName && (
+                            <span className="text-[10px] text-emerald-650 truncate block font-semibold" title={currentReg.subActivityName}>
+                              ↪️ {currentReg.subActivityName}
+                            </span>
+                          )}
                           {currentReg?.attendedDate && (
                             <span className="text-[9px] text-slate-400 block font-mono">📅 {currentReg.attendedDate}</span>
                           )}
@@ -1331,6 +1389,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                           <th className="py-2 px-3">Lokasi</th>
                           <th className="py-2 px-3">Proyek</th>
                           <th className="py-2 px-3">Nama Aktivitas</th>
+                          <th className="py-2 px-3">Sub-Aktivitas</th>
                           <th className="py-2 px-3">Tanggal</th>
                         </tr>
                       </thead>
@@ -1351,6 +1410,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                               <td className="py-1.5 px-3 truncate max-w-[80px]">{row.location || '—'}</td>
                               <td className="py-1.5 px-3 text-blue-700 truncate max-w-[100px]">{row.project_name || '—'}</td>
                               <td className="py-1.5 px-3 truncate max-w-[100px]">{row.activity_name || '—'}</td>
+                              <td className="py-1.5 px-3 text-emerald-700 truncate max-w-[100px]">{row.sub_activity_name || '—'}</td>
                               <td className="py-1.5 px-3 font-mono text-[9px]">{row.attended_date || '—'}</td>
                             </tr>
                           );

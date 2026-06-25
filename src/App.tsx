@@ -2180,9 +2180,11 @@ export default function App() {
               beneficiaries={beneficiaries}
               projects={projects}
               activities={activities}
+              subActivities={subActivities}
               onUpdateBeneficiaries={updateBeneficiariesInStorage}
               onUpdateProjects={updateProjectsInStorage}
               onUpdateActivities={updateActivitiesInStorage}
+              onUpdateSubActivities={updateSubActivitiesInStorage}
               onOpenAddModal={(defaultProjId) => {
                 setSelectedBen(undefined);
                 setDefaultBenProjectId(defaultProjId || '');

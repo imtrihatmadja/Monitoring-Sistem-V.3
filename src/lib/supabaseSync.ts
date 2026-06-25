@@ -348,14 +348,18 @@ function normalizeBeneficiary(ben: any): Beneficiary {
     
     const pIdRaw = r.projectId || r.project_id || '';
     const actIdRaw = r.activityId || r.activity_id || undefined;
+    const subActIdRaw = r.subActivityId || r.sub_activity_id || undefined;
     
     const projectId = pIdRaw ? SupabaseSync.getOriginalId(pIdRaw) : '';
     const activityId = actIdRaw ? SupabaseSync.getOriginalId(actIdRaw) : undefined;
+    const subActivityId = subActIdRaw ? SupabaseSync.getOriginalId(subActIdRaw) : undefined;
     
     return {
       projectId,
       activityId,
+      subActivityId,
       activityName: r.activityName || r.activity_name || undefined,
+      subActivityName: r.subActivityName || r.sub_activity_name || undefined,
       attendedDate: r.attendedDate || r.attended_date || undefined,
       isFreeLog: r.isFreeLog !== undefined ? r.isFreeLog : (r.is_free_log !== undefined ? r.is_free_log : undefined),
       note: r.note || undefined,

@@ -1486,6 +1486,9 @@ export const BenDetailModal: React.FC<BenDetailModalProps> = ({
                         </div>
                         <p className="text-slate-600 font-bold text-[11px]">
                           📍 Kehadiran: <strong className="text-blue-700">{actTitle}</strong>
+                          {reg.subActivityName && (
+                            <span className="text-slate-500 font-medium"> (Sub-Kegiatan: <strong className="text-emerald-700">{reg.subActivityName}</strong>)</span>
+                          )}
                         </p>
                         {reg.note && (
                           <p className="text-[10px] text-slate-550 pl-2.5 border-l border-slate-200 font-medium whitespace-pre-line py-0.5 mt-1 text-slate-500">
