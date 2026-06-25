@@ -50,17 +50,42 @@ export const StaffTab: React.FC<StaffTabProps> = ({
     return staffList.filter((s) => s.status === selectedStatus);
   }, [staffList, selectedStatus]);
 
-  // Aggregate stats across all staff assignments
-  const totalInvolvedStaff = staffList.filter((s) => s.status === 'active').length;
-  const totalAssignedActivities = activities.length;
-  
-  const pendingTasksCount = activities.filter(
-    (a) => a.status === 'Belum Mulai' || a.status === 'Sedang Berjalan' || a.status === 'Tertunda'
-  ).length;
+  // Identify active staff names for precise mapping
+  const activeStaffNames = useMemo(() => {
+    return staffList
+      .filter((s) => s.status === 'active')
+      .map((s) => s.name.toLowerCase().trim());
+  }, [staffList]);
 
-  const averageActivitiesProgress = activities.length
-    ? Math.round(activities.reduce((sum, a) => sum + a.progress, 0) / activities.length)
-    : 0;
+  // Filter activities assigned to the active registered staff members
+  const activeStaffActivities = useMemo(() => {
+    return activities.filter((a) => {
+      if (!a.pic) return false;
+      return activeStaffNames.includes(a.pic.toLowerCase().trim());
+    });
+  }, [activities, activeStaffNames]);
+
+  // Aggregate stats across all active staff assignments
+  const totalInvolvedStaff = staffList.filter((s) => s.status === 'active').length;
+  const totalAssignedActivities = activeStaffActivities.length;
+  
+  const pendingTasksCount = useMemo(() => {
+    return activeStaffActivities.filter((a) => {
+      if (a.status === 'Tertunda') return true;
+      if (a.status !== 'Selesai' && a.dueDate) {
+        const due = new Date(a.dueDate).getTime();
+        const now = new Date().getTime();
+        return due < now;
+      }
+      return false;
+    }).length;
+  }, [activeStaffActivities]);
+
+  const averageActivitiesProgress = useMemo(() => {
+    if (activeStaffActivities.length === 0) return 0;
+    const sum = activeStaffActivities.reduce((acc, a) => acc + (a.progress || 0), 0);
+    return Math.round(sum / activeStaffActivities.length);
+  }, [activeStaffActivities]);
 
   // Compile individual staff workloads sheet
   const staffWorkloads = useMemo(() => {
