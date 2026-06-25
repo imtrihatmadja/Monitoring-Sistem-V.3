@@ -660,6 +660,21 @@ export default function App() {
     }
   };
 
+  const updateStaffInStorage = (newList: Staff[]) => {
+    setStaff(newList);
+    localStorage.setItem('dfw_staff', JSON.stringify(newList));
+    if (dbIsConfigured) {
+      const deleted = staff.filter(s => !newList.some(item => item.id === s.id));
+      deleted.forEach(s => handleSyncResult(SupabaseSync.deleteStaff(s.id), "Penghapusan staff"));
+      newList.forEach(item => {
+        const oldItem = staff.find(s => s.id === item.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          handleSyncResult(SupabaseSync.saveStaff(item), "Staff");
+        }
+      });
+    }
+  };
+
   // Recalculates project overall progress dynamically based on activity progress averages
   const recalculateProgressAndSave = (projId: string, customActivities?: Activity[]) => {
     const list = customActivities || activities;
@@ -2220,6 +2235,7 @@ export default function App() {
               staffList={staff}
               activities={activities}
               projects={projects}
+              onUpdateStaffList={updateStaffInStorage}
               onOpenTasksModal={(staffName) => {
                 setSelectedStaffTasksName(staffName);
                 setIsStaffTasksModalOpen(true);
