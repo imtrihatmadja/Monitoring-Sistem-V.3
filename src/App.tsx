@@ -1872,8 +1872,14 @@ export default function App() {
   // Filter reflections related to currently viewed detail project
   const currentProjectReflections = reflections.filter((r) => r.projectId === selectedProjectId);
 
-  // Extract staff names
-  const staffNamesList = staff.map((s) => s.name);
+  // Extract staff names uniquely, trimmed, and sorted alphabetically
+  const staffNamesList = Array.from(
+    new Set(
+      staff
+        .map((s) => s.name?.trim())
+        .filter((name): name is string => typeof name === 'string' && name.length > 0)
+    )
+  ).sort((a: string, b: string) => a.localeCompare(b));
 
   // Filter archived projects
   const archivedProjects = projects.filter((p) => p.isArchived);

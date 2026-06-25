@@ -173,6 +173,11 @@ export const ActivityModal: React.FC<ActivityModalProps> = ({
                     {st}
                   </option>
                 ))}
+                {pic && !staffList.includes(pic) && (
+                  <option value={pic}>
+                    {pic}
+                  </option>
+                )}
               </select>
             </div>
 
@@ -1794,6 +1799,11 @@ export const SubActivitiesModal: React.FC<SubActivitiesModalProps> = ({
                       {st}
                     </option>
                   ))}
+                  {subPic && !staffList.includes(subPic) && (
+                    <option value={subPic}>
+                      {subPic}
+                    </option>
+                  )}
                 </select>
               </div>
 

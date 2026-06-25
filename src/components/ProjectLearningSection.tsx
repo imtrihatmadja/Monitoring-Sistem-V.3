@@ -288,6 +288,9 @@ export const ProjectLearningSection: React.FC<ProjectLearningSectionProps> = ({
                 {staffList.map((s, idx) => (
                   <option key={idx} value={s}>{s}</option>
                 ))}
+                {refContributor && !staffList.includes(refContributor) && (
+                  <option value={refContributor}>{refContributor}</option>
+                )}
               </select>
             </div>
 

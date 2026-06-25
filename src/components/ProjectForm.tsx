@@ -253,6 +253,11 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
                     {st}
                   </option>
                 ))}
+                {owner && !staffList.includes(owner) && (
+                  <option value={owner}>
+                    {owner}
+                  </option>
+                )}
               </select>
             </div>
 
