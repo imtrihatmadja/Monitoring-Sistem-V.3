@@ -114,6 +114,7 @@ export default function App() {
 
   const [isBenModalOpen, setIsBenModalOpen] = useState(false);
   const [selectedBen, setSelectedBen] = useState<Beneficiary | undefined>(undefined);
+  const [defaultBenProjectId, setDefaultBenProjectId] = useState<string>('');
 
   const [isBenDetailModalOpen, setIsBenDetailModalOpen] = useState(false);
   const [selectedDetailBen, setSelectedDetailBen] = useState<Beneficiary | undefined>(undefined);
@@ -2120,8 +2121,10 @@ export default function App() {
               activities={activities}
               onUpdateBeneficiaries={updateBeneficiariesInStorage}
               onUpdateProjects={updateProjectsInStorage}
-              onOpenAddModal={() => {
+              onUpdateActivities={updateActivitiesInStorage}
+              onOpenAddModal={(defaultProjId) => {
                 setSelectedBen(undefined);
+                setDefaultBenProjectId(defaultProjId || '');
                 setIsBenModalOpen(true);
               }}
               onOpenEditModal={(ben) => {
@@ -2962,9 +2965,11 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
         isOpen={isBenModalOpen}
         beneficiary={selectedBen}
         projectsList={projects.map((p) => ({ id: p.id, name: p.name }))}
+        defaultProjectId={defaultBenProjectId}
         onClose={() => {
           setIsBenModalOpen(false);
           setSelectedBen(undefined);
+          setDefaultBenProjectId('');
         }}
         onSave={handleSaveBeneficiaryForm}
       />

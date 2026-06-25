@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Beneficiary, Project, Activity, BeneficiaryRegistration } from '../types';
+import { SupabaseSync } from '../lib/supabaseSync';
 import {
   Search,
   FileSpreadsheet,
@@ -39,7 +40,8 @@ interface BeneficiaryTabProps {
   activities: Activity[];
   onUpdateBeneficiaries: (newList: Beneficiary[]) => void;
   onUpdateProjects?: (newList: Project[]) => void;
-  onOpenAddModal: () => void;
+  onUpdateActivities?: (newList: Activity[]) => void;
+  onOpenAddModal: (defaultProjId?: string) => void;
   onOpenEditModal: (ben: Beneficiary) => void;
   onOpenDetailModal: (ben: Beneficiary) => void;
 }
@@ -106,6 +108,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
   activities,
   onUpdateBeneficiaries,
   onUpdateProjects,
+  onUpdateActivities,
   onOpenAddModal,
   onOpenEditModal,
   onOpenDetailModal,
@@ -114,6 +117,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
   const [toolbarProjectFilter, setToolbarProjectFilter] = useState('');
+  const [activityFilter, setActivityFilter] = useState('');
   
   // Chart visual toggle state
   const [showCharts, setShowCharts] = useState(true);
@@ -131,10 +135,20 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
   const activeProjects = projects.filter(p => !p.isArchived);
 
+  // Compute activities available for dropdown based on active project selection
+  const availableActivitiesForFilter = useMemo(() => {
+    const activeProj = selectedProjectId || toolbarProjectFilter;
+    if (activeProj) {
+      return activities.filter(a => a.projectId === activeProj || SupabaseSync.getOriginalId(a.projectId) === activeProj || SupabaseSync.getUuid(a.projectId) === SupabaseSync.getUuid(activeProj));
+    }
+    return activities;
+  }, [activities, selectedProjectId, toolbarProjectFilter]);
+
   // Synchronize top project selector bar and inside filter dropdown selector
   const syncProjectFilter = (pId: string) => {
     setSelectedProjectId(pId);
     setToolbarProjectFilter(pId);
+    setActivityFilter(''); // Reset activity filter when switching projects
   };
 
   // Helper text normalization
@@ -199,14 +213,36 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
     });
   };
 
-  // 1. Filter beneficiaries based on project selector, search term, and gender dropdown
+  // 1. Filter beneficiaries based on project selector, search term, gender, and activity dropdown
   const filteredBeneficiaries = useMemo(() => {
     const activeFilterProjId = selectedProjectId || toolbarProjectFilter;
     return beneficiaries.filter((b) => {
       // Filter by project connection
       if (activeFilterProjId) {
-        const isRegisteredToProject = b.registrations.some((r) => r.projectId === activeFilterProjId);
+        const isRegisteredToProject = b.registrations.some((r) => {
+          if (!r.projectId) return false;
+          if (r.projectId === activeFilterProjId) return true;
+          if (SupabaseSync.getOriginalId(r.projectId) === activeFilterProjId) return true;
+          if (SupabaseSync.getUuid(r.projectId) === SupabaseSync.getUuid(activeFilterProjId)) return true;
+          return false;
+        });
         if (!isRegisteredToProject) return false;
+      }
+
+      // Filter by activity connection
+      if (activityFilter) {
+        const isRegisteredToActivity = b.registrations.some((r) => {
+          if (!r.activityId && !r.activityName) return false;
+          if (r.activityId === activityFilter) return true;
+          if (r.activityId && SupabaseSync.getOriginalId(r.activityId) === activityFilter) return true;
+          if (r.activityId && SupabaseSync.getUuid(r.activityId) === SupabaseSync.getUuid(activityFilter)) return true;
+          if (r.activityName) {
+            const activeActTitle = activities.find(a => a.id === activityFilter)?.title.toLowerCase().trim();
+            if (activeActTitle && r.activityName.toLowerCase().trim() === activeActTitle) return true;
+          }
+          return false;
+        });
+        if (!isRegisteredToActivity) return false;
       }
 
       // Search term (Matches: name, phone, location, occupation)
@@ -222,12 +258,12 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
       return matchesSearch && matchesGender;
     });
-  }, [beneficiaries, selectedProjectId, toolbarProjectFilter, searchQuery, genderFilter]);
+  }, [beneficiaries, selectedProjectId, toolbarProjectFilter, activityFilter, searchQuery, genderFilter, activities]);
 
   // Reset pagination on filter change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [selectedProjectId, toolbarProjectFilter, searchQuery, genderFilter]);
+  }, [selectedProjectId, toolbarProjectFilter, searchQuery, genderFilter, activityFilter]);
 
   // Statistics calculation
   const statsOverview = useMemo(() => {
@@ -245,7 +281,13 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
       // Filter registrations count based on current active project selection if any
       const relevantRegs = activeProj
-        ? b.registrations.filter((r) => r.projectId === activeProj)
+        ? b.registrations.filter((r) => {
+            if (!r.projectId) return false;
+            if (r.projectId === activeProj) return true;
+            if (SupabaseSync.getOriginalId(r.projectId) === activeProj) return true;
+            if (SupabaseSync.getUuid(r.projectId) === SupabaseSync.getUuid(activeProj)) return true;
+            return false;
+          })
         : b.registrations;
 
       relevantRegs.forEach((reg) => {
@@ -370,7 +412,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
       const rows1 = filteredBeneficiaries.map((b, i) => {
         const projs = b.registrations.map(r => {
-          const pObj = projects.find(p => p.id === r.projectId);
+          const pObj = projects.find(p => p.id === r.projectId || SupabaseSync.getOriginalId(r.projectId) === p.id || SupabaseSync.getUuid(r.projectId) === SupabaseSync.getUuid(p.id));
           return pObj ? pObj.name : 'Proyek Umum';
         });
         const uniqueProjs = Array.from(new Set(projs)).join(', ');
@@ -402,7 +444,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
       filteredBeneficiaries.forEach((b) => {
         b.registrations.forEach((reg) => {
-          const pObj = projects.find(p => p.id === reg.projectId);
+          const pObj = projects.find(p => p.id === reg.projectId || SupabaseSync.getOriginalId(reg.projectId) === p.id || SupabaseSync.getUuid(reg.projectId) === SupabaseSync.getUuid(p.id));
           const actObj = reg.activityId ? activities.find(a => a.id === reg.activityId) : null;
           
           let actNameStr = reg.activityName || 'Aktivitas Umum';
@@ -561,6 +603,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
         let workingList = [...beneficiaries];
         let currentProjects = [...projects];
+        let currentActivities = [...activities];
 
         stagedRows.forEach((row) => {
           const normalizedInput = {
@@ -660,7 +703,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
 
             if (row.activity_name) {
               const rowActLower = String(row.activity_name).toLowerCase().trim();
-              const matchedActObj = activities.find(a => 
+              const matchedActObj = currentActivities.find(a => 
                 a.projectId === resolvedProjectId && 
                 a.title.toLowerCase().trim() === rowActLower
               );
@@ -670,9 +713,23 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                 finalActivityName = matchedActObj.title;
                 regCount++;
               } else {
-                // Not found on system milestones, falls back to "Log Bebas" annotation text
-                isFreeLog = true;
-                logBebasCount++;
+                // Auto-create missing activity under resolvedProjectId
+                const newActId = `act-auto-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                const newAct: Activity = {
+                  id: newActId,
+                  projectId: resolvedProjectId,
+                  title: finalActivityName || String(row.activity_name).trim(),
+                  desc: 'Aktivitas ini otomatis dibuat saat melakukan import data penerima manfaat.',
+                  pic: 'Sistem Terintegrasi',
+                  status: 'Sedang Berjalan',
+                  progress: 0,
+                  notes: [],
+                  files: []
+                };
+                currentActivities.push(newAct);
+                matchedActivityId = newActId;
+                finalActivityName = newAct.title;
+                regCount++;
               }
             }
 
@@ -709,6 +766,11 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
         // Save projects if any were automatically created
         if (onUpdateProjects && currentProjects.length > projects.length) {
           onUpdateProjects(currentProjects);
+        }
+
+        // Save activities if any were automatically created
+        if (onUpdateActivities && currentActivities.length > activities.length) {
+          onUpdateActivities(currentActivities);
         }
 
         // Save beneficiaries
@@ -802,74 +864,99 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
       </div>
 
       {/* 3. Action Panel, Search & Filter Toolbar */}
-      <div id="ben-controls" className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          <div className="relative flex-1 max-w-xs">
+      <div id="ben-controls" className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+        {/* Row 1: Search, Gender, and Project Filters */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md w-full">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white transition-all"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-400 focus:bg-white transition-all h-[34px]"
               placeholder="Cari nama, hp, asal desa…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <select
-            value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer mb-[1px]"
-          >
-            <option value="">Semua Gender</option>
-            <option value="Laki-laki">Laki-laki</option>
-            <option value="Perempuan">Perempuan</option>
-          </select>
+          {/* Gender and Project Selector dropdowns */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer h-[34px] min-w-[120px]"
+            >
+              <option value="">Semua Gender</option>
+              <option value="Laki-laki">Laki-laki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
 
-          <select
-            value={toolbarProjectFilter}
-            onChange={(e) => syncProjectFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer mb-[1px]"
-          >
-            <option value="">Semua Proyek Pembinaan</option>
-            {activeProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            <select
+              value={toolbarProjectFilter}
+              onChange={(e) => syncProjectFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer h-[34px] max-w-[280px]"
+            >
+              <option value="">Semua Proyek Pembinaan</option>
+              {activeProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => {
-              setImportFeedback({ message: '', type: '' });
-              setStagedRows(null);
-              setIsImportModalOpen(true);
-            }}
-            className="bg-slate-50 hover:bg-slate-150 text-slate-600 border border-slate-200 font-extrabold text-xs py-1.5 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer h-[34px]"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Import Excel
-          </button>
-          <button
-            onClick={handleExportToExcel}
-            disabled={filteredBeneficiaries.length === 0}
-            className="disabled:opacity-50 disabled:cursor-not-allowed bg-slate-50 hover:bg-slate-150 text-slate-600 border border-slate-200 font-extrabold text-xs py-1.5 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer h-[34px]"
-          >
-            <Download className="w-4 h-4 text-blue-600" /> Export Excel
-          </button>
-          <button
-            onClick={handleDownloadTemplate}
-            className="bg-slate-50 hover:bg-slate-150 text-slate-500 hover:text-slate-800 border border-slate-200 font-extrabold text-xs py-1.5 px-2.5 rounded-lg transition-all cursor-pointer h-[34px]"
-            title="Download Template Format Impor"
-          >
-            Template
-          </button>
-          <button
-            onClick={onOpenAddModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-1.5 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1 cursor-pointer h-[34px]"
-          >
-            ＋ Tambah Manual
-          </button>
+        {/* Dynamic Activity Filter (Only visible or enabled when applicable, placed in its own clean row) */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider hidden sm:inline">Aktivitas Proyek:</span>
+            <select
+              value={activityFilter}
+              onChange={(e) => setActivityFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-400 transition-all cursor-pointer h-[34px] w-full sm:w-[240px]"
+            >
+              <option value="">Semua Aktivitas</option>
+              {availableActivitiesForFilter.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Action Buttons (Import, Export, Tambah Manual) */}
+          <div className="flex flex-wrap items-center gap-1.5 justify-end">
+            <button
+              onClick={() => {
+                setImportFeedback({ message: '', type: '' });
+                setStagedRows(null);
+                setIsImportModalOpen(true);
+              }}
+              className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-1.5 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer h-[34px]"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Import Excel
+            </button>
+            <button
+              onClick={handleExportToExcel}
+              disabled={filteredBeneficiaries.length === 0}
+              className="disabled:opacity-50 disabled:cursor-not-allowed bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 font-extrabold text-xs py-1.5 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer h-[34px]"
+            >
+              <Download className="w-4 h-4 text-blue-600" /> Export Excel
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              className="bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 font-extrabold text-xs py-1.5 px-2.5 rounded-lg transition-all cursor-pointer h-[34px]"
+              title="Download Template Format Impor"
+            >
+              Template
+            </button>
+            <button
+              onClick={() => onOpenAddModal(selectedProjectId || toolbarProjectFilter)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-1.5 px-4 rounded-lg shadow-xs transition-all flex items-center gap-1 cursor-pointer h-[34px]"
+            >
+              ＋ Tambah Manual
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1002,7 +1089,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
                   let registeredActivityName = '—';
 
                   if (currentReg) {
-                    const pObj = projects.find(p => p.id === currentReg.projectId);
+                    const pObj = projects.find(p => p.id === currentReg.projectId || SupabaseSync.getOriginalId(currentReg.projectId) === p.id || SupabaseSync.getUuid(currentReg.projectId) === SupabaseSync.getUuid(p.id));
                     registeredProjectName = pObj ? pObj.name : 'Program Umum';
 
                     if (currentReg.activityId) {

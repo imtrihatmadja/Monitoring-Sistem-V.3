@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Project, Activity, Indicator, Beneficiary, Issue, Staff, SubActivity, ActivityFile, ActivityNote } from '../types';
 import { X, Upload, Download, Trash2, Edit2, AlertTriangle, FileText, CheckCircle2, Check, Plus, Tag, HelpCircle, Users, Eye } from 'lucide-react';
+import { SupabaseSync } from '../lib/supabaseSync';
 
 // ==========================================
 // 1. ADD / EDIT ACTIVITY MODAL
@@ -1147,6 +1148,7 @@ interface BeneficiaryModalProps {
   projectsList: { id: string; name: string }[];
   onClose: () => void;
   onSave: (benData: Partial<Beneficiary>) => void;
+  defaultProjectId?: string;
 }
 
 export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
@@ -1155,6 +1157,7 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
   projectsList,
   onClose,
   onSave,
+  defaultProjectId,
 }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -1189,10 +1192,10 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
         setOccupation('');
         setEmail('');
         setNote('');
-        setRegProjectId('');
+        setRegProjectId(defaultProjectId || '');
       }
     }
-  }, [isOpen, beneficiary]);
+  }, [isOpen, beneficiary, defaultProjectId]);
 
   if (!isOpen) return null;
 
@@ -1454,7 +1457,7 @@ export const BenDetailModal: React.FC<BenDetailModalProps> = ({
                 </p>
               ) : (
                 beneficiary.registrations.map((reg, idx) => {
-                  const associatedProj = projects.find((p) => p.id === reg.projectId);
+                  const associatedProj = projects.find((p) => p.id === reg.projectId || SupabaseSync.getOriginalId(reg.projectId) === p.id || SupabaseSync.getUuid(reg.projectId) === SupabaseSync.getUuid(p.id));
                   
                   // Resolve activity title
                   let actTitle = reg.activityName || 'Aktivitas Umum';

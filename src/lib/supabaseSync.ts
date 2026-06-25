@@ -470,6 +470,16 @@ function mapReflectionToDb(ref: ProjectReflection) {
 
 // Exportable Sync APIs
 export const SupabaseSync = {
+  getOriginalId(uuid: string): string {
+    if (!uuid) return uuid;
+    const lower = uuid.trim().toLowerCase();
+    return uuidToOriginalMap[lower] || uuid;
+  },
+
+  getUuid(originalId: string): string {
+    return textToUuid(originalId);
+  },
+
   // Discover columns and data types in Supabase using the PostgREST OpenAPI spec endpoint
   async fetchSchemaInfo(customUrl?: string, customKey?: string): Promise<boolean> {
     const targetUrl = customUrl || supabaseUrl;
@@ -620,6 +630,45 @@ export const SupabaseSync = {
         }
 
         try {
+          if (table === 'beneficiaries') {
+            // Loop in batches of 1000 to fetch absolutely all beneficiaries
+            let allData: any[] = [];
+            let fromIndex = 0;
+            let toIndex = 999;
+            let hasMore = true;
+
+            while (hasMore) {
+              let query = supabase!.from(table).select('*').range(fromIndex, toIndex);
+              
+              if (projectId) {
+                const uuidProjId = textToUuid(projectId);
+                const hasProjectIdCol = fallbackSchemaUuidColumns[table]?.includes('project_id') || 
+                                        (schemaColumns[table] && schemaColumns[table].includes('project_id'));
+                if (hasProjectIdCol) {
+                  query = query.eq('project_id', uuidProjId);
+                }
+              }
+
+              const res = await query;
+              if (res.error) {
+                return { data: [], error: res.error };
+              }
+
+              const chunk = res.data || [];
+              allData = [...allData, ...chunk];
+              
+              if (chunk.length < 1000) {
+                hasMore = false;
+              } else {
+                fromIndex += 1000;
+                toIndex += 1000;
+              }
+            }
+
+            harvestColumns(table, allData);
+            return { data: allData };
+          }
+
           let query = supabase!.from(table).select('*');
 
           // Apply project filtering where appropriate to restrict downloading extraneous records
