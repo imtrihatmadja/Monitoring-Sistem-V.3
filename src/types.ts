@@ -35,6 +35,8 @@ export interface Indicator {
   unit: string;
   lastUpdated?: string;
   lastValue?: number;
+  notes?: string;
+  notesUpdatedAt?: string;
 }
 
 export interface ActivityNote {

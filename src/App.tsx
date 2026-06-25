@@ -1024,14 +1024,25 @@ export default function App() {
   };
 
   // --- QUICK UPDATE PERFORMANCE INDICATORS CURRENT ON PANEL ---
-  const handleSaveIndicatorValueInline = (indicatorId: string, newValue: number) => {
+  const handleSaveIndicatorValueInline = (indicatorId: string, newValue: number, newNotes?: string) => {
     const updated = indicators.map((ind) => {
       if (ind.id === indicatorId) {
+        const isNoteChanged = newNotes !== undefined;
         return {
           ...ind,
           current: newValue,
           lastValue: ind.current,
           lastUpdated: new Date().toISOString().split('T')[0],
+          ...(isNoteChanged ? {
+            notes: newNotes,
+            notesUpdatedAt: newNotes.trim() !== '' ? new Date().toLocaleString('id-ID', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : undefined
+          } : {})
         };
       }
       return ind;
@@ -2686,7 +2697,9 @@ CREATE TABLE IF NOT EXISTS project_indicators (
     unit TEXT,
     last_updated TEXT,
     last_value NUMERIC DEFAULT 0,
-    project_name TEXT DEFAULT 'DFW Indonesia'
+    project_name TEXT DEFAULT 'DFW Indonesia',
+    notes TEXT,
+    notes_updated_at TEXT
 );
 
 -- 3. Tabel Project Outcomes
@@ -2866,7 +2879,9 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;unit TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;last_updated TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;last_value NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;notes TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;notes_updated_at TEXT{"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 3. Tabel Project Outcomes</span>{"\n"}

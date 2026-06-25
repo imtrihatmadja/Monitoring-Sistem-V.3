@@ -25,7 +25,8 @@ import {
   Image as ImageIcon,
   FileSpreadsheet,
   FileArchive,
-  FolderOpen
+  FolderOpen,
+  Clock
 } from 'lucide-react';
 import { DOC_CATEGORIES } from './DocumentsTab';
 import { ProjectLearningSection } from './ProjectLearningSection';
@@ -47,7 +48,7 @@ interface ProjectDetailTabProps {
   onEditActivityClick: (activity: Activity) => void;
   onOpenSubActivities: (activityId: string) => void;
   onDeleteActivityClick: (activityId: string) => void;
-  onSaveIndicatorValue: (indicatorId: string, newValue: number) => void;
+  onSaveIndicatorValue: (indicatorId: string, newValue: number, newNotes?: string) => void;
   onUpdateBudgetActual?: (projectId: string, newBudgetActual: number) => void;
   onGoToDocumentsTab?: () => void;
   onAddReflection: (reflection: Partial<ProjectReflection>) => void;
@@ -77,6 +78,7 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
 }) => {
   // Inline indicator states for quick value edits
   const [indValues, setIndValues] = useState<Record<string, number>>({});
+  const [indNotes, setIndNotes] = useState<Record<string, string>>({});
 
   // Budget actual update states
   const [showBudgetUpdateModal, setShowBudgetUpdateModal] = useState(false);
@@ -95,12 +97,14 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
     setIndValues((prev) => ({ ...prev, [id]: val }));
   };
 
-  const handleSaveInd = (id: string) => {
-    const val = indValues[id];
-    if (val !== undefined) {
-      onSaveIndicatorValue(id, val);
-      // Give visual cues or simple alerts
-    }
+  const handleIndNotesChange = (id: string, val: string) => {
+    setIndNotes((prev) => ({ ...prev, [id]: val }));
+  };
+
+  const handleSaveInd = (id: string, currentVal: number, existingNotes: string) => {
+    const val = indValues[id] !== undefined ? indValues[id] : currentVal;
+    const note = indNotes[id] !== undefined ? indNotes[id] : existingNotes;
+    onSaveIndicatorValue(id, val, note);
   };
 
   const formatRupiah = (value: any) => {
@@ -545,23 +549,58 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Inline updating inputs */}
-                    <div className="flex items-center gap-2 pt-1 font-semibold text-slate-700">
-                      <div className="flex-1 space-y-1 text-slate-400 text-[10px]">
-                        <span>Edit Angka Capaian</span>
-                        <input
-                          type="number"
-                          className="w-full bg-white border border-slate-200 py-1 px-2.5 rounded focus:outline-none focus:border-blue-400 text-xs font-bold text-slate-800"
-                          value={currentVal}
-                          onChange={(e) => handleIndValueChange(ind.id, Number(e.target.value))}
-                        />
+                    {/* Catatan / Keterangan Capaian Display */}
+                    {ind.notes ? (
+                      <div className="bg-slate-100/65 border border-slate-200/60 p-2.5 rounded-xl mt-2 space-y-1 animate-fadeIn">
+                        <p className="text-[11px] font-medium text-slate-700 leading-relaxed italic">
+                          "{ind.notes}"
+                        </p>
+                        {ind.notesUpdatedAt && (
+                          <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>Catatan Terakhir: {ind.notesUpdatedAt}</span>
+                          </div>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handleSaveInd(ind.id)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] py-2 px-3 rounded shadow-xs cursor-pointer self-end inline-flex items-center gap-1 transition-all h-[32px] mt-1"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Simpan
-                      </button>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 italic mt-1 font-medium bg-slate-50 border border-slate-100 p-2.5 rounded-xl">
+                        Belum ada catatan atau keterangan capaian.
+                      </div>
+                    )}
+
+                    {/* Inline updating inputs */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-1 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                          <span>Edit Angka Capaian</span>
+                          <input
+                            type="number"
+                            className="w-full bg-white border border-slate-200 py-1.5 px-2.5 rounded-lg focus:outline-none focus:border-blue-400 text-xs font-bold text-slate-800"
+                            value={currentVal}
+                            onChange={(e) => handleIndValueChange(ind.id, Number(e.target.value))}
+                          />
+                        </div>
+
+                        <div className="space-y-1 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                          <span>Catatan / Keterangan Capaian</span>
+                          <input
+                            type="text"
+                            placeholder="Tulis progres, kendala atau info capaian..."
+                            className="w-full bg-white border border-slate-200 py-1.5 px-2.5 rounded-lg focus:outline-none focus:border-blue-400 text-xs font-medium text-slate-800"
+                            value={indNotes[ind.id] !== undefined ? indNotes[ind.id] : (ind.notes || '')}
+                            onChange={(e) => handleIndNotesChange(ind.id, e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => handleSaveInd(ind.id, ind.current, ind.notes || '')}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] py-1.5 px-3.5 rounded-lg shadow-xs cursor-pointer inline-flex items-center gap-1.5 transition-all"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Simpan Capaian &amp; Catatan
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

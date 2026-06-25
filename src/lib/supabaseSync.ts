@@ -10,7 +10,7 @@ const fallbackSchemaColumns: Record<string, string[]> = {
     'is_archived', 'archored_by', 'archived_at'
   ],
   project_indicators: [
-    'id', 'project_id', 'title', 'indicator_name', 'target', 'current', 'unit', 'last_updated', 'last_value', 'project_name'
+    'id', 'project_id', 'title', 'indicator_name', 'target', 'current', 'unit', 'last_updated', 'last_value', 'project_name', 'notes', 'notes_updated_at'
   ],
   project_outcomes: [
     'id', 'project_id', 'title', 'outcome_text', 'project_name'
