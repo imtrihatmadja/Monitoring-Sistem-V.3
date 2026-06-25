@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Beneficiary, Project, Activity, BeneficiaryRegistration } from '../types';
 import { SupabaseSync } from '../lib/supabaseSync';
+import { safeStorage } from '../lib/safeStorage';
 import {
   Search,
   FileSpreadsheet,
@@ -113,10 +114,14 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
   onOpenEditModal,
   onOpenDetailModal,
 }) => {
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(() => {
+    return safeStorage.getItem('dfw_ben_selected_project_id') || '';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
-  const [toolbarProjectFilter, setToolbarProjectFilter] = useState('');
+  const [toolbarProjectFilter, setToolbarProjectFilter] = useState(() => {
+    return safeStorage.getItem('dfw_ben_selected_project_id') || '';
+  });
   const [activityFilter, setActivityFilter] = useState('');
   
   // Chart visual toggle state
@@ -161,6 +166,7 @@ export const BeneficiaryTab: React.FC<BeneficiaryTabProps> = ({
     setSelectedProjectId(pId);
     setToolbarProjectFilter(pId);
     setActivityFilter(''); // Reset activity filter when switching projects
+    safeStorage.setItem('dfw_ben_selected_project_id', pId);
   };
 
   // Helper text normalization

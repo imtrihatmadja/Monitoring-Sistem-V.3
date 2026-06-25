@@ -328,6 +328,44 @@ function fromDbRow<T>(row: any): T {
   return result as T;
 }
 
+function normalizeBeneficiary(ben: any): Beneficiary {
+  if (!ben) return ben;
+  
+  let regs = ben.registrations;
+  if (typeof regs === 'string') {
+    try {
+      regs = JSON.parse(regs);
+    } catch {
+      regs = [];
+    }
+  }
+  if (!regs || !Array.isArray(regs)) {
+    regs = [];
+  }
+
+  ben.registrations = regs.map((r: any) => {
+    if (!r || typeof r !== 'object') return r;
+    
+    const pIdRaw = r.projectId || r.project_id || '';
+    const actIdRaw = r.activityId || r.activity_id || undefined;
+    
+    const projectId = pIdRaw ? SupabaseSync.getOriginalId(pIdRaw) : '';
+    const activityId = actIdRaw ? SupabaseSync.getOriginalId(actIdRaw) : undefined;
+    
+    return {
+      projectId,
+      activityId,
+      activityName: r.activityName || r.activity_name || undefined,
+      attendedDate: r.attendedDate || r.attended_date || undefined,
+      isFreeLog: r.isFreeLog !== undefined ? r.isFreeLog : (r.is_free_log !== undefined ? r.is_free_log : undefined),
+      note: r.note || undefined,
+      source: r.source || undefined
+    };
+  });
+
+  return ben as Beneficiary;
+}
+
 // Interceptor to filter out non-existent columns and dynamically convert text keys to UUID if required by DB schema
 function cleanRowAndPrepare(tableName: string, row: any): any {
   if (!row) return row;
@@ -787,14 +825,8 @@ export const SupabaseSync = {
           return act;
         }),
         beneficiaries: resBeneficiaries.data === undefined ? undefined : (resBeneficiaries.data || []).map(row => {
-          const ben = fromDbRow<Beneficiary>(row);
-          if (typeof ben.registrations === 'string') {
-            try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
-          }
-          if (!ben.registrations || !Array.isArray(ben.registrations)) {
-            ben.registrations = [];
-          }
-          return ben;
+          const ben = fromDbRow<any>(row);
+          return normalizeBeneficiary(ben);
         }),
         issues: resIssues.data === undefined ? undefined : (resIssues.data || []).map(row => {
           const issue = fromDbRow<Issue>(row);
@@ -874,14 +906,8 @@ export const SupabaseSync = {
       }
       if (table === 'beneficiaries') {
         return rows.map(row => {
-          const ben = fromDbRow<Beneficiary>(row);
-          if (typeof ben.registrations === 'string') {
-            try { ben.registrations = JSON.parse(ben.registrations); } catch { ben.registrations = []; }
-          }
-          if (!ben.registrations || !Array.isArray(ben.registrations)) {
-            ben.registrations = [];
-          }
-          return ben;
+          const ben = fromDbRow<any>(row);
+          return normalizeBeneficiary(ben);
         });
       }
       if (table === 'issues') {

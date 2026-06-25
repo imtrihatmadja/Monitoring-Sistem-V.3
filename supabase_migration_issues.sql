@@ -40,6 +40,10 @@ ADD COLUMN IF NOT EXISTS updates JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE beneficiaries 
 ADD COLUMN IF NOT EXISTS full_name TEXT;
 
+-- Ensure "registrations" JSONB column exists for storing beneficiary project connections and attendance
+ALTER TABLE beneficiaries 
+ADD COLUMN IF NOT EXISTS registrations JSONB DEFAULT '[]'::jsonb;
+
 
 -- ==========================================
 -- 3. VERFICATION STATUS (Optional debug query)
