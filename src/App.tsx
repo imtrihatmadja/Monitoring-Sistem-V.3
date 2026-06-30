@@ -1132,6 +1132,55 @@ export default function App() {
     }
 
     const isID = lang === 'id';
+
+    function formatPdfText(text: string | undefined | null): string {
+      if (!text) return '';
+      const lines = text.split('\n');
+      let html = '';
+      let currentListType: 'ul' | 'ol' | null = null;
+
+      const closeList = () => {
+        if (currentListType === 'ul') {
+          html += '</ul>';
+        } else if (currentListType === 'ol') {
+          html += '</ol>';
+        }
+        currentListType = null;
+      };
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          closeList();
+          return;
+        }
+
+        const bulletMatch = trimmed.match(/^[-*•+]\s+(.*)/);
+        const numberMatch = trimmed.match(/^(\d+)[.)]\s+(.*)/);
+
+        if (bulletMatch) {
+          if (currentListType !== 'ul') {
+            closeList();
+            html += '<ul style="margin: 4px 0 4px 16px; padding-left: 0; list-style-type: disc;">';
+            currentListType = 'ul';
+          }
+          html += `<li style="margin-bottom: 3px; line-height: 1.4;">${bulletMatch[1]}</li>`;
+        } else if (numberMatch) {
+          if (currentListType !== 'ol') {
+            closeList();
+            html += '<ol style="margin: 4px 0 4px 16px; padding-left: 0; list-style-type: decimal;">';
+            currentListType = 'ol';
+          }
+          html += `<li style="margin-bottom: 3px; line-height: 1.4;">${numberMatch[2]}</li>`;
+        } else {
+          closeList();
+          html += `<p style="margin: 4px 0; line-height: 1.4;">${trimmed}</p>`;
+        }
+      });
+
+      closeList();
+      return html;
+    }
     
     // Date Range calculation
     const fromDateObj = from ? new Date(from + 'T00:00:00') : null;
@@ -1548,11 +1597,11 @@ export default function App() {
     const goalsSectionHtml = (hasGoal || hasOut || hasDesc) ? `
       <div class="section-card avoid-break">
         ${secHead('🎯', L.sec_goal, '#7c3aed')}
-        ${hasDesc ? `<p style="font-size: 9.5pt; color: #475569; margin-bottom: 12px; line-height: 1.6; font-style: italic;">${proj.desc}</p>` : ''}
+        ${hasDesc ? `<div style="font-size: 9.5pt; color: #475569; margin-bottom: 12px; line-height: 1.6; font-style: italic;">${formatPdfText(proj.desc)}</div>` : ''}
         ${hasGoal ? `
           <div class="goal-box" style="background: #f0f7ff; border-color: #bfdbfe; border-radius: 10px;">
             <div class="goal-label" style="color: #1e40af;">${L.goal}</div>
-            <p style="font-size: 9.5pt; color: #1e3a8a; line-height: 1.5; font-weight: 500;">${proj.goal}</p>
+            <div style="font-size: 9.5pt; color: #1e3a8a; line-height: 1.5; font-weight: 500;">${formatPdfText(proj.goal)}</div>
           </div>
         ` : ''}
         ${hasOut ? `
@@ -1582,12 +1631,22 @@ export default function App() {
       return `
         <tr>
           <td class="ctr" style="font-weight: 700; color: #64748b;">${i + 1}</td>
-          <td><strong style="color: #0f172a;">${ind.title}</strong></td>
+          <td>
+            <strong style="color: #0f172a;">${ind.title}</strong>
+          </td>
           <td class="ctr"><span style="font-size: 8pt; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 20px; padding: 2px 8px; font-weight: 700; text-transform: uppercase;">Output</span></td>
           <td class="num font-bold" style="font-weight: 700;">${tg.toLocaleString('id-ID')} <span style="color:#94a3b8; font-size: 8pt; font-weight: 500;">${ind.unit || ''}</span></td>
           <td class="num" style="font-weight: 750;"><strong style="color: ${c}">${a.toLocaleString('id-ID')}</strong> <span style="color:#94a3b8; font-size: 8pt; font-weight: 500;">${ind.unit || ''}</span></td>
           <td>${pbarHtml(pct, c)}</td>
-          <td style="font-size: 8.5pt; color: #64748b;">${ind.lastUpdated ? _rptDate(ind.lastUpdated) : '—'}</td>
+          <td style="font-size: 8.5pt; color: #475569; line-height: 1.4;">
+            ${ind.notes ? `
+              <div style="font-weight: 500; font-style: italic; color: #334155;">${formatPdfText(ind.notes)}</div>
+              ${ind.notesUpdatedAt ? `<div style="font-size: 7.5pt; color: #94a3b8; font-weight: bold; margin-top: 4px; font-style: normal; text-transform: uppercase; letter-spacing: 0.05em;">⏱️ ${ind.notesUpdatedAt}</div>` : ''}
+            ` : `
+              <span style="color: #94a3b8; font-style: italic;">Tidak ada catatan</span>
+              ${ind.lastUpdated ? `<div style="font-size: 7.5pt; color: #cbd5e1; font-weight: bold; margin-top: 4px; font-style: normal;">⏱️ ${_rptDate(ind.lastUpdated)}</div>` : ''}
+            `}
+          </td>
         </tr>
       `;
     }).join('');
@@ -1600,11 +1659,11 @@ export default function App() {
             <tr>
               <th class="ctr" style="width: 28px">#</th>
               <th>${L.indName}</th>
-              <th class="ctr" style="width: 75px">${L.type}</th>
-              <th class="num" style="width: 105px">${L.target}</th>
-              <th class="num" style="width: 110px">${L.actual}</th>
-              <th style="width: 115px">${L.pct}</th>
-              <th style="width: 90px">${L.lastNote}</th>
+              <th class="ctr" style="width: 70px">${L.type}</th>
+              <th class="num" style="width: 90px">${L.target}</th>
+              <th class="num" style="width: 90px">${L.actual}</th>
+              <th style="width: 100px">${L.pct}</th>
+              <th style="width: 180px">${L.lastNote}</th>
             </tr>
           </thead>
           <tbody>${indRowsHtml}</tbody>
@@ -1728,19 +1787,46 @@ export default function App() {
           }
 
           let innerContent = `
-            <div style="font-size: 9.5pt; color: #1e293b; margin-bottom: 6px; line-height: 1.4; font-weight: 600;">
-              ${ref.lesson}
+            <div style="font-size: 9.5pt; color: #1e293b; margin-bottom: 8px; line-height: 1.45;">
+              <strong>💡 ${isID ? 'Pelajaran Utama' : 'Key Lesson Learned'}:</strong>
+              <div style="margin-top: 4px; padding-left: 4px; font-weight: 500;">${formatPdfText(ref.lesson)}</div>
             </div>
           `;
           if (ref.whatHappened) {
-            innerContent += `<div style="font-size: 8.5pt; color: #475569; margin-bottom: 4px;"><strong>${isID ? 'Apa yang Terjadi' : 'What Happened'}:</strong> ${ref.whatHappened}</div>`;
+            innerContent += `
+              <div style="font-size: 9pt; color: #334155; margin-bottom: 8px; line-height: 1.45;">
+                <strong>📝 ${isID ? 'Apa yang Terjadi / Konteks' : 'What Happened / Context'}:</strong>
+                <div style="margin-top: 4px; padding-left: 4px; color: #475569;">${formatPdfText(ref.whatHappened)}</div>
+              </div>
+            `;
+          }
+          if (ref.whatWorked) {
+            innerContent += `
+              <div style="font-size: 9pt; color: #15803d; margin-bottom: 8px; line-height: 1.45;">
+                <strong>✔️ ${isID ? 'Faktor Penunjang / Keberhasilan' : 'What Worked / Success Factors'}:</strong>
+                <div style="margin-top: 4px; padding-left: 4px; color: #166534;">${formatPdfText(ref.whatWorked)}</div>
+              </div>
+            `;
+          }
+          if (ref.whatDidnt) {
+            innerContent += `
+              <div style="font-size: 9pt; color: #b91c1c; margin-bottom: 8px; line-height: 1.45;">
+                <strong>⚠️ ${isID ? 'Hambatan / Masalah' : "What Didn't Work / Challenges"}:</strong>
+                <div style="margin-top: 4px; padding-left: 4px; color: #991b1b;">${formatPdfText(ref.whatDidnt)}</div>
+              </div>
+            `;
           }
           if (ref.nextSteps) {
-            innerContent += `<div style="font-size: 8.5pt; color: #1e40af; margin-top: 4px; background: #e0f2fe; padding: 4px 8px; border-radius: 6px;"><strong>📌 ${isID ? 'Tindak Lanjut' : 'Next Steps'}:</strong> ${ref.nextSteps}</div>`;
+            innerContent += `
+              <div style="font-size: 9pt; color: #1e40af; margin-top: 6px; background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px 12px; border-radius: 8px; line-height: 1.45;">
+                <strong>📌 ${isID ? 'Rencana Tindak Lanjut' : 'Next Steps / Action Plan'}:</strong>
+                <div style="margin-top: 4px;">${formatPdfText(ref.nextSteps)}</div>
+              </div>
+            `;
           }
 
           return `
-            <div class="rtl-card" style="border-left-color: ${typeColor}; background: ${typeColor}08; border-color: ${typeColor}15; border-radius: 10px;">
+            <div class="rtl-card" style="border-left-color: ${typeColor}; background: ${typeColor}08; border-color: ${typeColor}15; border-radius: 10px; margin-bottom: 12px; page-break-inside: avoid;">
               <div class="rtl-ind-title" style="color: ${typeColor};">
                 <span class="rtl-type-badge" style="background: ${typeColor}15; color: ${typeColor};">${typeLabel}</span>
                 ${ref.title || (isID ? 'Refleksi Pelaksanaan' : 'Reflection Entry')}
@@ -1750,7 +1836,7 @@ export default function App() {
                   <div class="rtl-note-dot" style="background: ${typeColor};"></div>
                   <div style="width: 100%;">
                     ${innerContent}
-                    <div class="rtl-note-meta">${_rptDate(ref.date)}${ref.contributor ? ' · ' + ref.contributor : ''}</div>
+                    <div class="rtl-note-meta" style="margin-top: 8px; border-top: 1px dashed #e2e8f0; padding-top: 6px;">${_rptDate(ref.date)}${ref.contributor ? ' · ' + ref.contributor : ''}</div>
                   </div>
                 </div>
               </div>
