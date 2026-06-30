@@ -32,6 +32,7 @@ import { DOC_CATEGORIES } from './DocumentsTab';
 import { ProjectLearningSection } from './ProjectLearningSection';
 import { getAccessToken } from '../lib/googleAuth';
 import { deleteFileFromGoogleDrive } from '../lib/googleDriveService';
+import { FormattedText } from './FormattedText';
 
 interface ProjectDetailTabProps {
   project: Project;
@@ -197,6 +198,11 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
                 <span>Deadline: <strong className="text-slate-700">{project.deadline || '—'}</strong></span>
               </div>
             </div>
+            {project.desc && (
+              <div className="pt-3 border-t border-slate-100/60 text-slate-600 text-xs leading-relaxed max-w-3xl">
+                <FormattedText text={project.desc} className="text-slate-600 font-medium text-xs" />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
@@ -212,8 +218,10 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
         {/* Goal highlight */}
         {project.goal && (
           <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/40 text-xs text-blue-900 leading-relaxed space-y-1">
-            <span className="font-extrabold text-[10px] text-blue-600 uppercase tracking-widest block">Goal Proyek</span>
-            <p className="font-semibold italic">"{project.goal}"</p>
+            <span className="font-extrabold text-[10px] text-blue-600 uppercase tracking-widest block mb-1">Goal Proyek</span>
+            <div className="font-semibold italic text-blue-800">
+              <FormattedText text={project.goal} className="text-blue-800" italic />
+            </div>
           </div>
         )}
 
@@ -551,10 +559,10 @@ export const ProjectDetailTab: React.FC<ProjectDetailTabProps> = ({
 
                     {/* Catatan / Keterangan Capaian Display */}
                     {ind.notes ? (
-                      <div className="bg-slate-100/65 border border-slate-200/60 p-2.5 rounded-xl mt-2 space-y-1 animate-fadeIn">
-                        <p className="text-[11px] font-medium text-slate-700 leading-relaxed italic">
-                          "{ind.notes}"
-                        </p>
+                      <div className="bg-slate-100/65 border border-slate-200/60 p-2.5 rounded-xl mt-2 space-y-1.5 animate-fadeIn">
+                        <div className="text-[11px] font-medium text-slate-700 leading-relaxed italic">
+                          <FormattedText text={ind.notes} className="text-slate-700 font-medium italic text-[11px]" italic />
+                        </div>
                         {ind.notesUpdatedAt && (
                           <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
                             <Clock className="w-3 h-3 text-slate-400" />

@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { Project, Activity, Indicator, Beneficiary, Issue, Staff, SubActivity, ActivityFile, ActivityNote } from '../types';
 import { X, Upload, Download, Trash2, Edit2, AlertTriangle, FileText, CheckCircle2, Check, Plus, Tag, HelpCircle, Users, Eye } from 'lucide-react';
 import { SupabaseSync } from '../lib/supabaseSync';
+import { FormattedText } from './FormattedText';
 
 // ==========================================
 // 1. ADD / EDIT ACTIVITY MODAL
@@ -1592,7 +1593,11 @@ export const StaffTasksModal: React.FC<StaffTasksModalProps> = ({
                     </span>
                   </div>
 
-                  {act.desc && <p className="text-slate-500 font-medium text-[11px] leading-relaxed italic">"{act.desc}"</p>}
+                  {act.desc && (
+                    <div className="text-slate-500 font-medium text-[11px] leading-relaxed italic bg-slate-100/40 p-2 rounded-lg">
+                      <FormattedText text={act.desc} className="text-slate-500 font-medium italic text-[11px]" italic />
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 font-semibold">
                     <span>Due: {act.dueDate || '—'}</span>
@@ -1730,7 +1735,11 @@ export const SubActivitiesModal: React.FC<SubActivitiesModalProps> = ({
                     >
                       <div className="space-y-1">
                         <h5 className="font-bold text-slate-800 text-[11px] leading-snug">{item.title}</h5>
-                        {item.desc && <p className="text-slate-500 text-[11px] leading-normal">{item.desc}</p>}
+                        {item.desc && (
+                          <div className="text-slate-500 text-[11px] leading-normal">
+                            <FormattedText text={item.desc} className="text-slate-500 text-[11px]" />
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[10px] text-slate-400 font-semibold">
                           <span>PIC: <strong className="text-slate-600">{item.pic || 'Belum Diatur'}</strong></span>
                           <span>•</span>
