@@ -2883,6 +2883,10 @@ CREATE TABLE IF NOT EXISTS staff (
     name TEXT NOT NULL,
     role TEXT,
     status TEXT DEFAULT 'active',
+    email TEXT,
+    phone TEXT,
+    is_active BOOLEAN DEFAULT true,
+    joined_at TIMESTAMP WITH TIME ZONE,
     description TEXT,
     archived BOOLEAN DEFAULT false,
     archived_by TEXT,
@@ -3003,6 +3007,10 @@ ALTER TABLE issues ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE 
 ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;
 ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;
 
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived_by TEXT;
@@ -3173,6 +3181,10 @@ ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP
                         &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;role TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;status TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'active'</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;email TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;phone TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;is_active BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">true</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;joined_at TIMESTAMP WITH TIME ZONE,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
@@ -3293,6 +3305,10 @@ ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_severity_check;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_status_check;{"\n"}{"\n"}
 
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> email TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> phone TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> is_active BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">true</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> joined_at TIMESTAMP WITH TIME ZONE;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
