@@ -2741,6 +2741,9 @@ export default function App() {
                         <li>Klik tombol <span className="font-bold text-slate-850">"+ New Query"</span> untuk membuka lembar kerja kosong.</li>
                         <li>Klik tombol <b>"Salin Skema SQL"</b> di bawah, kemudian <b>tempel (Paste)</b> di SQL editor Supabase Anda.</li>
                         <li>Klik tombol hijau <span className="font-bold text-green-600">"Run"</span> di sudut kanan bawah editor Supabase. Selesai!</li>
+                        <li className="text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-150 mt-1.5">
+                          ⚠️ <b>PENTING UNTUK IMPORT EXCEL/CSV:</b> Jika format tanggal di file Anda menggunakan format <b>Hari/Bulan/Tahun (DD/MM/YYYY)</b> seperti <code>15/04/2026</code>, pastikan untuk menjalankan perintah <code>ALTER DATABASE postgres SET datestyle TO 'ISO, DMY';</code> di SQL Editor Anda terlebih dahulu untuk menghindari error.
+                        </li>
                       </ol>
                     </div>
 
@@ -2751,6 +2754,9 @@ export default function App() {
                           onClick={() => {
                             const sqlText = `-- SKEMA STRUKTUR DATABASE DFW INDONESIA UNTUK SUPABASE
 -- Harap jalankan seluruh instruksi di bawah ini di menu SQL Editor Supabase Anda
+
+-- KONFIGURASI FORMAT TANGGAL (PENTING AGAR IMPORT EXCEL/CSV HARI/BULAN/TAHUN TIDAK ERROR)
+ALTER DATABASE postgres SET datestyle TO 'ISO, DMY';
 
 -- 1. Tabel Projects
 CREATE TABLE IF NOT EXISTS projects (
@@ -2766,11 +2772,16 @@ CREATE TABLE IF NOT EXISTS projects (
     budget_approved DOUBLE PRECISION DEFAULT 0,
     budget_actual DOUBLE PRECISION DEFAULT 0,
     "desc" TEXT,
+    description TEXT, -- Untuk kecocokan impor CSV/Excel
     note TEXT,
     goal TEXT,
     is_archived BOOLEAN DEFAULT false,
+    archived BOOLEAN DEFAULT false, -- Untuk kecocokan impor CSV/Excel
     archored_by TEXT,
-    archived_at TIMESTAMP WITH TIME ZONE
+    archived_by TEXT, -- Untuk kecocokan impor CSV/Excel dan koreksi typo
+    archived_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()), -- Untuk kecocokan impor CSV/Excel
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())  -- Untuk kecocokan impor CSV/Excel
 );
 
 -- 2. Tabel Project Indicators
@@ -2785,7 +2796,12 @@ CREATE TABLE IF NOT EXISTS project_indicators (
     last_value NUMERIC DEFAULT 0,
     project_name TEXT DEFAULT 'DFW Indonesia',
     notes TEXT,
-    notes_updated_at TEXT
+    notes_updated_at TEXT,
+    description TEXT,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 3. Tabel Project Outcomes
@@ -2793,7 +2809,12 @@ CREATE TABLE IF NOT EXISTS project_outcomes (
     id UUID PRIMARY KEY,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    project_name TEXT DEFAULT 'DFW Indonesia'
+    project_name TEXT DEFAULT 'DFW Indonesia',
+    description TEXT,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 4. Tabel Project Activities
@@ -2802,13 +2823,18 @@ CREATE TABLE IF NOT EXISTS project_activities (
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     "desc" TEXT,
+    description TEXT,
     pic TEXT,
     status TEXT,
     start_date DATE,
     due_date DATE,
     progress NUMERIC DEFAULT 0,
     notes JSONB DEFAULT '[]'::jsonb,
-    files JSONB DEFAULT '[]'::jsonb
+    files JSONB DEFAULT '[]'::jsonb,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 5. Tabel Beneficiaries (Penerima Manfaat)
@@ -2822,7 +2848,12 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
     occupation TEXT,
     email TEXT,
     note TEXT,
-    registrations JSONB DEFAULT '[]'::jsonb
+    registrations JSONB DEFAULT '[]'::jsonb,
+    description TEXT,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 6. Tabel Issues (Isu & Pengaduan)
@@ -2839,7 +2870,11 @@ CREATE TABLE IF NOT EXISTS issues (
     source_type TEXT,
     source_link TEXT,
     tags TEXT,
-    updates JSONB DEFAULT '[]'::jsonb
+    updates JSONB DEFAULT '[]'::jsonb,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 7. Tabel Staff (Anggota Tim)
@@ -2847,7 +2882,12 @@ CREATE TABLE IF NOT EXISTS staff (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
     role TEXT,
-    status TEXT DEFAULT 'active'
+    status TEXT DEFAULT 'active',
+    description TEXT,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 8. Tabel Project Reflections (Catatan Belajar / Refleksi)
@@ -2862,7 +2902,12 @@ CREATE TABLE IF NOT EXISTS project_reflections (
     what_didnt TEXT,
     lesson TEXT NOT NULL,
     next_steps TEXT,
-    contributor TEXT
+    contributor TEXT,
+    description TEXT,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 9. Tabel Project Documents (Dokumen / Arsip File)
@@ -2877,7 +2922,10 @@ CREATE TABLE IF NOT EXISTS project_documents (
     drive_folder_id TEXT,
     web_view_link TEXT,
     description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 10. Tabel Project Sub-Activities
@@ -2886,10 +2934,15 @@ CREATE TABLE IF NOT EXISTS project_sub_activities (
     parent_activity_id UUID REFERENCES project_activities(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     "desc" TEXT,
+    description TEXT,
     pic TEXT,
     status TEXT,
     priority TEXT,
-    due DATE
+    due DATE,
+    archived BOOLEAN DEFAULT false,
+    archived_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- MATIKAN RLS AGAR INTERAKSI INTEGRASI DAPAT DISINKRONISASI AKTIF LANGSUNG
@@ -2905,16 +2958,72 @@ ALTER TABLE project_documents DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_sub_activities DISABLE ROW LEVEL SECURITY;
 
 -- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
 ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
 ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS notes_updated_at TEXT;
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE project_indicators ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
 ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'DFW Indonesia';
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE project_outcomes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
 ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE beneficiaries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS date_occurred TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS source_type TEXT;
 ALTER TABLE issues ADD COLUMN IF NOT EXISTS updates JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE issues ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
 ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_severity_check;
-ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
+ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;
+
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE project_reflections ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE project_reflections ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_reflections ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_reflections ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE project_reflections ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false;
+ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS archived_by TEXT;
+ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+ALTER TABLE project_sub_activities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());`;
                             navigator.clipboard.writeText(sqlText);
                             setSqlCopied(true);
                             setTimeout(() => setSqlCopied(false), 2500);
@@ -2936,6 +3045,9 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                       </div>
 
                       <div className="bg-slate-900 text-slate-100 rounded-xl p-3 text-[10px] font-mono leading-relaxed h-52 overflow-y-auto border border-slate-800 shadow-inner select-text">
+                        <span className="text-amber-400">-- KONFIGURASI FORMAT TANGGAL</span>{"\n"}
+                        <span className="text-purple-400">ALTER DATABASE</span> postgres <span className="text-purple-400">SET</span> datestyle <span className="text-purple-400">TO</span> <span className="text-emerald-400">'ISO, DMY'</span>;{"\n"}{"\n"}
+
                         <span className="text-amber-400">-- 1. Tabel Projects</span>{"\n"}
                         <span className="text-purple-400">CREATE TABLE IF NOT EXISTS</span> projects ({"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
@@ -2950,11 +3062,16 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;budget_approved DOUBLE PRECISION <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;budget_actual DOUBLE PRECISION <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;note TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;goal TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;is_archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;archored_by TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;archived_at TIMESTAMP WITH TIME ZONE{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_at TIMESTAMP WITH TIME ZONE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
                         
                         <span className="text-amber-400">-- 2. Tabel Project Indicators</span>{"\n"}
@@ -2969,7 +3086,12 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;last_value NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;notes TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;notes_updated_at TEXT{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;notes_updated_at TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 3. Tabel Project Outcomes</span>{"\n"}
@@ -2977,7 +3099,12 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 4. Tabel Project Activities</span>{"\n"}
@@ -2986,13 +3113,18 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;project_id UUID <span className="text-emerald-400">REFERENCES</span> projects(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;pic TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;start_date DATE,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;due_date DATE,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;progress NUMERIC <span className="text-blue-400">DEFAULT</span> 0,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;notes JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;files JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;files JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 5. Tabel Beneficiaries</span>{"\n"}
@@ -3006,7 +3138,12 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;occupation TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;email TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;note TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;registrations JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;registrations JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 6. Tabel Issues</span>{"\n"}
@@ -3023,7 +3160,11 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;source_type TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;source_link TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;tags TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 7. Tabel Staff</span>{"\n"}
@@ -3031,7 +3172,12 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;id UUID <span className="text-emerald-400">PRIMARY KEY</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;name TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;role TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'active'</span>{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;status TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'active'</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 8. Tabel Project Reflections</span>{"\n"}
@@ -3046,7 +3192,12 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;what_didnt TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;lesson TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;next_steps TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;contributor TEXT{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;contributor TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 9. Tabel Project Documents</span>{"\n"}
@@ -3061,7 +3212,10 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;drive_folder_id TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;web_view_link TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- 10. Tabel Project Sub-Activities</span>{"\n"}
@@ -3070,10 +3224,15 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         &nbsp;&nbsp;&nbsp;&nbsp;parent_activity_id UUID <span className="text-emerald-400">REFERENCES</span> project_activities(id) <span className="text-purple-400">ON DELETE CASCADE</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;title TEXT <span className="text-red-400">NOT NULL</span>,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;"desc" TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;description TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;pic TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;status TEXT,{"\n"}
                         &nbsp;&nbsp;&nbsp;&nbsp;priority TEXT,{"\n"}
-                        &nbsp;&nbsp;&nbsp;&nbsp;due DATE{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;due DATE,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;archived_by TEXT,{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()),{"\n"}
+                        &nbsp;&nbsp;&nbsp;&nbsp;updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now()){"\n"}
                         );{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- PENTING: DISABLE ROW LEVEL SECURITY (RLS)</span>{"\n"}
@@ -3089,16 +3248,72 @@ ALTER TABLE issues DROP CONSTRAINT IF EXISTS issues_status_check;`;
                         <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-emerald-400">DISABLE ROW LEVEL SECURITY</span>;{"\n"}{"\n"}
 
                         <span className="text-amber-400">-- KOSTUMISASI COMPATIBILITY: JALANKAN ALTER TABLE JIKA TABEL SUDAH ADA SEBELUMNYA DAN MENGALAMI HILANG KOLOM ATAU PERBAIKAN CONSTRAINT</span>{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> projects <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
                         <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> notes TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> notes_updated_at TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_indicators <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
                         <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> project_name TEXT <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'DFW Indonesia'</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_outcomes <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
                         <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> full_name TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> beneficiaries <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> date_occurred TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> source_type TEXT;{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updates JSONB <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">'[]'::jsonb</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
                         <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_severity_check;{"\n"}
-                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_status_check;
+                        <span className="text-purple-400">ALTER TABLE</span> issues <span className="text-purple-400">DROP CONSTRAINT IF EXISTS</span> issues_status_check;{"\n"}{"\n"}
+
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> staff <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_reflections <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
+                        <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_documents <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}{"\n"}
+
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> description TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived BOOLEAN <span className="text-blue-400">DEFAULT</span> <span className="text-emerald-400">false</span>;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> archived_by TEXT;{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> created_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());{"\n"}
+                        <span className="text-purple-400">ALTER TABLE</span> project_sub_activities <span className="text-purple-400">ADD COLUMN IF NOT EXISTS</span> updated_at TIMESTAMP WITH TIME ZONE <span className="text-blue-400">DEFAULT</span> timezone('utc'::text, now());
                       </div>
                     </div>
                   </div>
